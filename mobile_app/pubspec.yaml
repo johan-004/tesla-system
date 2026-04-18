@@ -1,0 +1,30 @@
+name: tesla_mobile
+description: Aplicacion movil base para Tesla System.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.1
+  shared_preferences: ^2.2.3
+  image_picker: ^1.1.2
+  file_picker: ^8.1.6
+  signature: ^5.5.0
+  image: ^4.5.4
+  pdf: ^3.11.1
+  printing: ^5.13.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/fonts/
