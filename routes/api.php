@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaServicioController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\CotizacionController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FacturaController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\ServicioController;
@@ -11,11 +12,33 @@ use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/login', [AuthController::class, 'login'])
+        ->middleware('throttle:auth-login');
+    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])
+        ->middleware('throttle:auth-recovery');
+    Route::post('/auth/forgot-password-sms', [AuthController::class, 'forgotPasswordSms'])
+        ->middleware('throttle:auth-recovery');
+    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])
+        ->middleware('throttle:auth-recovery');
+    Route::post('/auth/reset-password-sms', [AuthController::class, 'resetPasswordSms'])
+        ->middleware('throttle:auth-recovery');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
+        Route::patch('/auth/email', [AuthController::class, 'updateEmail'])
+            ->middleware('throttle:auth-sensitive');
+        Route::patch('/auth/phone', [AuthController::class, 'updatePhone'])
+            ->middleware('throttle:auth-sensitive');
+        Route::patch('/auth/password', [AuthController::class, 'updatePassword'])
+            ->middleware('throttle:auth-sensitive');
+
+        Route::get('dashboard/resumen', [DashboardController::class, 'resumen'])
+            ->middleware([
+                'permission:cotizaciones.view',
+                'permission:facturacion.view',
+                'permission:productos.view',
+            ]);
 
         Route::get('productos/sugerencias', [ProductoController::class, 'suggestions'])
             ->middleware('permission:productos.view');

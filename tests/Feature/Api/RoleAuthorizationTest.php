@@ -89,16 +89,21 @@ test('vendedor can view administrative modules and work in cotizaciones/facturac
 
     $this->postJson('/api/v1/facturas', [
         'cliente_id' => $cliente->id,
-        'numero' => 'FAC-001',
         'fecha' => now()->toDateString(),
-        'total' => 120,
+        'cliente_nombre' => 'Cliente demo',
+        'items' => [
+            [
+                'descripcion' => 'Servicio demo',
+                'unidad' => 'Un.',
+                'cantidad' => 1,
+                'precio_unitario' => 120,
+            ],
+        ],
     ])->assertCreated();
 
     $factura = Factura::query()->latest()->firstOrFail();
 
-    $this->putJson("/api/v1/facturas/{$factura->id}", [
-        'estado' => 'emitida',
-    ])->assertOk();
+    $this->patchJson("/api/v1/facturas/{$factura->id}/emitir")->assertOk();
 });
 
 test('vendedor cannot modify administrative modules', function () {

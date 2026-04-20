@@ -22,7 +22,8 @@ class UserController extends Controller
     {
         $user = User::create([
             'name' => $request->name,
-            'email' => $request->email,
+            'email' => mb_strtolower(trim((string) $request->email)),
+            'phone' => $request->input('phone'),
             'password' => Hash::make($request->password),
             'role' => $request->role,
         ]);
@@ -40,6 +41,10 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, User $user)
     {
         $data = $request->safe()->except('password');
+
+        if (array_key_exists('email', $data)) {
+            $data['email'] = mb_strtolower(trim((string) $data['email']));
+        }
 
         if ($request->filled('password')) {
             $data['password'] = Hash::make($request->password);

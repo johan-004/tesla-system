@@ -26,6 +26,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'phone',
         'password',
         'role',
         'firma_path_default',
@@ -155,5 +156,31 @@ class User extends Authenticatable
     public function setRoleAttribute(?string $value): void
     {
         $this->attributes['role'] = self::normalizeRoleValue($value);
+    }
+
+    public static function normalizePhone(?string $phone): ?string
+    {
+        if ($phone === null) {
+            return null;
+        }
+
+        $value = trim($phone);
+        if ($value === '') {
+            return null;
+        }
+
+        $hasPlus = str_starts_with($value, '+');
+        $digitsOnly = preg_replace('/\D+/', '', $value) ?? '';
+
+        if ($digitsOnly === '') {
+            return null;
+        }
+
+        return $hasPlus ? '+'.$digitsOnly : $digitsOnly;
+    }
+
+    public function setPhoneAttribute(?string $value): void
+    {
+        $this->attributes['phone'] = self::normalizePhone($value);
     }
 }

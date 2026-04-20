@@ -242,7 +242,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Módulo interno de facturación con flujo seguro: borrador editable, emitida cerrada y descuento de stock al emitir.',
+            'Módulo de cuentas de cobro por servicios: borrador editable y emisión de documento.',
             style: TextStyle(color: Color(0xFFE2E8F0), height: 1.45),
           ),
           const SizedBox(height: 18),
@@ -481,7 +481,6 @@ class _FacturasScreenState extends State<FacturasScreen> {
         DropdownMenuItem(value: 'codigo', child: Text('Código')),
         DropdownMenuItem(value: 'cliente_nombre', child: Text('Cliente')),
         DropdownMenuItem(value: 'subtotal', child: Text('Subtotal')),
-        DropdownMenuItem(value: 'iva_total', child: Text('IVA total')),
         DropdownMenuItem(value: 'total', child: Text('Total')),
         DropdownMenuItem(value: 'estado', child: Text('Estado')),
       ],
@@ -582,21 +581,14 @@ class _FacturasScreenState extends State<FacturasScreen> {
               Expanded(
                 child: _buildMoneyMetric(
                   'Subtotal',
-                  PriceFormatter.formatCopLatino(factura.subtotal),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMoneyMetric(
-                  'IVA total',
-                  PriceFormatter.formatCopLatino(factura.ivaTotal),
+                  PriceFormatter.formatCopWhole(factura.subtotal),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _buildMoneyMetric(
                   'Total',
-                  PriceFormatter.formatCopLatino(factura.total),
+                  PriceFormatter.formatCopWhole(factura.total),
                 ),
               ),
             ],
@@ -664,7 +656,6 @@ class _FacturasScreenState extends State<FacturasScreen> {
                 _HeaderCell('Fecha', flex: 10),
                 _HeaderCell('Cliente', flex: 18),
                 _HeaderCell('Subtotal', flex: 12),
-                _HeaderCell('IVA total', flex: 12),
                 _HeaderCell('Total', flex: 12),
                 _HeaderCell('Estado', flex: 10),
                 _HeaderCell('Acciones', flex: 18, alignEnd: true),
@@ -712,21 +703,14 @@ class _FacturasScreenState extends State<FacturasScreen> {
                     Expanded(
                       flex: 12,
                       child: Text(
-                        PriceFormatter.formatCopLatino(factura.subtotal),
+                        PriceFormatter.formatCopWhole(factura.subtotal),
                         style: const TextStyle(color: _slate700),
                       ),
                     ),
                     Expanded(
                       flex: 12,
                       child: Text(
-                        PriceFormatter.formatCopLatino(factura.ivaTotal),
-                        style: const TextStyle(color: _slate700),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 12,
-                      child: Text(
-                        PriceFormatter.formatCopLatino(factura.total),
+                        PriceFormatter.formatCopWhole(factura.total),
                         style: const TextStyle(
                           color: _slate900,
                           fontWeight: FontWeight.w700,
@@ -920,6 +904,20 @@ class _FacturasScreenState extends State<FacturasScreen> {
         builder: (_) => FacturaFormScreen(
           controller: _controller,
           canEditFacturacion: _canEdit,
+          defaultFirmaPath: widget.authController.defaultFirmaPath,
+          defaultFirmaNombre: widget.authController.defaultFirmaNombre,
+          defaultFirmaCargo: widget.authController.defaultFirmaCargo,
+          defaultFirmaEmpresa: widget.authController.defaultFirmaEmpresa,
+          onFirmaPredeterminadaActualizada: (
+              {firmaPath,
+              required firmaNombre,
+              required firmaCargo,
+              required firmaEmpresa}) {
+            widget.authController.defaultFirmaPath = firmaPath;
+            widget.authController.defaultFirmaNombre = firmaNombre;
+            widget.authController.defaultFirmaCargo = firmaCargo;
+            widget.authController.defaultFirmaEmpresa = firmaEmpresa;
+          },
         ),
       ),
     );
@@ -938,6 +936,10 @@ class _FacturasScreenState extends State<FacturasScreen> {
         builder: (_) => FacturaDetailScreen(
           controller: _controller,
           factura: factura,
+          defaultFirmaPath: widget.authController.defaultFirmaPath,
+          defaultFirmaNombre: widget.authController.defaultFirmaNombre,
+          defaultFirmaCargo: widget.authController.defaultFirmaCargo,
+          defaultFirmaEmpresa: widget.authController.defaultFirmaEmpresa,
         ),
       ),
     );
@@ -956,6 +958,20 @@ class _FacturasScreenState extends State<FacturasScreen> {
           canEditFacturacion: _canEdit,
           initialFactura: factura,
           readOnly: false,
+          defaultFirmaPath: widget.authController.defaultFirmaPath,
+          defaultFirmaNombre: widget.authController.defaultFirmaNombre,
+          defaultFirmaCargo: widget.authController.defaultFirmaCargo,
+          defaultFirmaEmpresa: widget.authController.defaultFirmaEmpresa,
+          onFirmaPredeterminadaActualizada: (
+              {firmaPath,
+              required firmaNombre,
+              required firmaCargo,
+              required firmaEmpresa}) {
+            widget.authController.defaultFirmaPath = firmaPath;
+            widget.authController.defaultFirmaNombre = firmaNombre;
+            widget.authController.defaultFirmaCargo = firmaCargo;
+            widget.authController.defaultFirmaEmpresa = firmaEmpresa;
+          },
         ),
       ),
     );
@@ -972,7 +988,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
     final confirmed = await _confirmDialog(
       title: 'Emitir factura',
       message:
-          'Se descontará stock de productos y la factura cambiará a emitida. ¿Deseas continuar?',
+          'La factura cambiará a emitida y quedará cerrada para edición. ¿Deseas continuar?',
       confirmText: 'Emitir',
       confirmColor: _emerald600,
     );

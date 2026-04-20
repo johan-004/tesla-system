@@ -87,9 +87,28 @@ class CotizacionPreviewScreen extends StatefulWidget {
 
 class _CotizacionPreviewScreenState extends State<CotizacionPreviewScreen> {
   bool _isExportingPdf = false;
+  late Future<List<Uint8List>> _mobilePreviewImagesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _mobilePreviewImagesFuture = _buildMobilePreviewImages();
+  }
 
   Future<Uint8List> _buildCotizacionPdfBytes() {
     return CotizacionPdfService.buildPdf(widget.cotizacion);
+  }
+
+  Future<List<Uint8List>> _buildMobilePreviewImages() async {
+    final pdfBytes = await _buildCotizacionPdfBytes();
+    final pages = <Uint8List>[];
+    await for (final page in Printing.raster(pdfBytes, dpi: 260)) {
+      pages.add(await page.toPng());
+    }
+    if (pages.isEmpty) {
+      throw StateError('No fue posible renderizar la vista de cotización.');
+    }
+    return pages;
   }
 
   Future<void> _sharePdf() async {
@@ -160,10 +179,15 @@ class _CotizacionPreviewScreenState extends State<CotizacionPreviewScreen> {
       builder: (context, constraints) {
         final isDesktop = AdaptiveLayout.isDesktopWidth(constraints.maxWidth);
         return Scaffold(
-          backgroundColor: _CotizacionFormScreenState._pageBackground,
+          backgroundColor: isDesktop
+              ? _CotizacionFormScreenState._pageBackground
+              : const Color(0xFF0B1116),
           appBar: AppBar(
-            backgroundColor: _CotizacionFormScreenState._pageBackground,
-            foregroundColor: _CotizacionFormScreenState._ink900,
+            backgroundColor: isDesktop
+                ? _CotizacionFormScreenState._pageBackground
+                : const Color(0xFF0B1116),
+            foregroundColor:
+                isDesktop ? _CotizacionFormScreenState._ink900 : Colors.white,
             elevation: 0,
             scrolledUnderElevation: 0,
             surfaceTintColor: Colors.transparent,
@@ -195,51 +219,104 @@ class _CotizacionPreviewScreenState extends State<CotizacionPreviewScreen> {
           ),
           body: SafeArea(
             top: false,
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(
-                isDesktop ? 32 : 16,
-                8,
-                isDesktop ? 32 : 16,
-                32,
-              ),
-              children: [
-                if (isDesktop)
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1160),
-                      child: Column(
-                        children: [
-                          _PreviewDocumentSheet(
-                            cotizacion: cotizacion,
-                            fecha: date,
-                            isDesktop: isDesktop,
-                          ),
-                          const SizedBox(height: 22),
-                          _PreviewSecondDocumentSheet(
-                            cotizacion: cotizacion,
-                            isDesktop: isDesktop,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Column(
+            child: isDesktop
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(32, 8, 32, 32),
                     children: [
-                      _PreviewDocumentSheet(
-                        cotizacion: cotizacion,
-                        fecha: date,
-                        isDesktop: isDesktop,
-                      ),
-                      const SizedBox(height: 16),
-                      _PreviewSecondDocumentSheet(
-                        cotizacion: cotizacion,
-                        isDesktop: isDesktop,
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1160),
+                          child: Column(
+                            children: [
+                              _PreviewDocumentSheet(
+                                cotizacion: cotizacion,
+                                fecha: date,
+                                isDesktop: true,
+                              ),
+                              const SizedBox(height: 22),
+                              _PreviewSecondDocumentSheet(
+                                cotizacion: cotizacion,
+                                isDesktop: true,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
+                  )
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 8, 6, 12),
+                    child: FutureBuilder<List<Uint8List>>(
+                      future: _mobilePreviewImagesFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+
+                        if (snapshot.hasError || !snapshot.hasData) {
+                          return const Center(
+                            child: Text(
+                              'No fue posible cargar la vista de cotización.',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          );
+                        }
+
+                        final pages = snapshot.data!;
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            final pageWidth = constraints.maxWidth - 8;
+                            return InteractiveViewer(
+                              minScale: 1,
+                              maxScale: 5.5,
+                              panEnabled: true,
+                              scaleEnabled: true,
+                              constrained: false,
+                              boundaryMargin: const EdgeInsets.all(220),
+                              child: SizedBox(
+                                width: pageWidth,
+                                child: Column(
+                                  children: [
+                                    for (var i = 0; i < pages.length; i++) ...[
+                                      Container(
+                                        width: pageWidth,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          boxShadow: const [
+                                            BoxShadow(
+                                              color: Color(0x22000000),
+                                              blurRadius: 10,
+                                              offset: Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Image.memory(
+                                            pages[i],
+                                            width: pageWidth,
+                                            fit: BoxFit.fitWidth,
+                                            filterQuality: FilterQuality.high,
+                                          ),
+                                        ),
+                                      ),
+                                      if (i < pages.length - 1)
+                                        const SizedBox(height: 14),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
-              ],
-            ),
           ),
         );
       },
@@ -278,6 +355,7 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
 
   final List<_LineaCotizacionDraft> _lineas = [];
   final List<TextEditingController> _alcanceControllers = [];
+  late final TransformationController _mobileSheetController;
 
   DateTime _fecha = DateTime.now();
   bool _isSaving = false;
@@ -300,6 +378,9 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
   @override
   void initState() {
     super.initState();
+    _mobileSheetController = TransformationController(
+      Matrix4.diagonal3Values(0.58, 0.58, 1),
+    );
     final cotizacion = widget.initialCotizacion;
     _fecha = _parseFecha(cotizacion?.fecha) ?? DateTime.now();
     _ciudadController = TextEditingController(text: cotizacion?.ciudad ?? '');
@@ -385,6 +466,7 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
 
   @override
   void dispose() {
+    _mobileSheetController.dispose();
     _ciudadController.dispose();
     _clienteNombreController.dispose();
     _clienteNitController.dispose();
@@ -419,11 +501,13 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = AdaptiveLayout.isDesktopWidth(constraints.maxWidth);
+        final pageBackground =
+            isDesktop ? _pageBackground : const Color(0xFF0B1116);
         return Scaffold(
-          backgroundColor: _pageBackground,
+          backgroundColor: pageBackground,
           appBar: AppBar(
-            backgroundColor: _pageBackground,
-            foregroundColor: _ink900,
+            backgroundColor: pageBackground,
+            foregroundColor: isDesktop ? _ink900 : Colors.white,
             elevation: 0,
             scrolledUnderElevation: 0,
             surfaceTintColor: Colors.transparent,
@@ -450,20 +534,34 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
                       ],
                     ],
                   )
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildTopSummary(false),
-                        const SizedBox(height: 18),
-                        _buildMobileDocumentSheet(),
-                        if (_error != null) ...[
-                          const SizedBox(height: 16),
-                          _buildErrorBanner(_error!),
-                        ],
-                      ],
-                    ),
+                : Column(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                          child: InteractiveViewer(
+                            transformationController: _mobileSheetController,
+                            minScale: 0.45,
+                            maxScale: 4.8,
+                            panEnabled: true,
+                            scaleEnabled: true,
+                            constrained: false,
+                            boundaryMargin: const EdgeInsets.all(260),
+                            child: Center(
+                              child: SizedBox(
+                                width: 1020,
+                                child: _buildMobileDocumentSheet(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: _buildErrorBanner(_error!),
+                        ),
+                    ],
                   ),
           ),
           bottomNavigationBar: SafeArea(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/auth/auth_controller.dart';
+import '../../dashboard/presentation/dashboard_overview.dart';
 import '../../cotizaciones/presentation/cotizaciones_screen.dart';
 import '../../facturas/presentation/facturas_screen.dart';
+import '../../profile/presentation/profile_screen.dart';
 import '../../productos/presentation/productos_screen.dart';
 import '../../servicios/presentation/servicios_screen.dart';
 
@@ -12,6 +14,7 @@ enum MobileModule {
   servicios,
   cotizaciones,
   facturas,
+  perfil,
 }
 
 class MobileShellScreen extends StatefulWidget {
@@ -117,6 +120,11 @@ class _MobileShellScreenState extends State<MobileShellScreen> {
         module: MobileModule.facturas,
         label: 'Facturas',
         icon: Icons.receipt_long_outlined,
+      ),
+      _MobileNavItem(
+        module: MobileModule.perfil,
+        label: 'Perfil',
+        icon: Icons.person_outline_rounded,
       ),
     ];
 
@@ -289,6 +297,7 @@ class _MobileShellScreenState extends State<MobileShellScreen> {
           title: 'Dashboard',
           subtitle: 'Resumen general',
           content: _MobileDashboardOverview(
+            authController: widget.authController,
             onSelectModule: (nextModule) {
               setState(() => _selectedModule = nextModule);
             },
@@ -330,137 +339,37 @@ class _MobileShellScreenState extends State<MobileShellScreen> {
             embedded: true,
           ),
         );
+      case MobileModule.perfil:
+        return _MobileModuleConfig(
+          title: 'Perfil',
+          subtitle: 'Cuenta y seguridad',
+          content: ProfileScreen(
+            authController: widget.authController,
+            embedded: true,
+          ),
+        );
     }
   }
 }
 
 class _MobileDashboardOverview extends StatelessWidget {
   const _MobileDashboardOverview({
+    required this.authController,
     required this.onSelectModule,
   });
 
+  final AuthController authController;
   final ValueChanged<MobileModule> onSelectModule;
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      (
-        title: 'Productos',
-        subtitle: 'Administrar catalogo y estados.',
-        icon: Icons.inventory_2_outlined,
-        module: MobileModule.productos,
-      ),
-      (
-        title: 'Servicios',
-        subtitle: 'Consultar servicios.',
-        icon: Icons.design_services_outlined,
-        module: MobileModule.servicios,
-      ),
-      (
-        title: 'Cotizaciones',
-        subtitle: 'Consultar listado, estados y acciones base.',
-        icon: Icons.request_quote_outlined,
-        module: MobileModule.cotizaciones,
-      ),
-      (
-        title: 'Facturas',
-        subtitle: 'Crear, emitir y anular facturas.',
-        icon: Icons.receipt_long_outlined,
-        module: MobileModule.facturas,
-      ),
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F172A), Color(0xFF134E4A), Color(0xFF0F766E)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Inicio movil',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Usa el menu lateral para navegar entre modulos. El inicio muestra accesos visibles a Productos y Servicios.',
-                style: TextStyle(
-                  color: Color(0xFFE2E8F0),
-                  height: 1.45,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        for (final item in items) ...[
-          InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () => onSelectModule(item.module),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(item.icon, color: const Color(0xFF0F766E)),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                            color: Color(0xFF0F172A),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.subtitle,
-                          style: const TextStyle(
-                            color: Color(0xFF64748B),
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(0xFF64748B),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
+    return DashboardOverview(
+      authController: authController,
+      compact: true,
+      onOpenProductos: () => onSelectModule(MobileModule.productos),
+      onOpenServicios: () => onSelectModule(MobileModule.servicios),
+      onOpenCotizaciones: () => onSelectModule(MobileModule.cotizaciones),
+      onOpenFacturas: () => onSelectModule(MobileModule.facturas),
     );
   }
 }

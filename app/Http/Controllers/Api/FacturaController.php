@@ -8,7 +8,6 @@ use App\Http\Requests\Api\Factura\UpdateFacturaRequest;
 use App\Http\Resources\FacturaResource;
 use App\Models\Factura;
 use App\Models\FacturaItem;
-use App\Models\Producto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -78,12 +77,18 @@ class FacturaController extends Controller
                 'codigo' => $this->generateCodigo(),
                 'numero' => null,
                 'fecha' => $payload['fecha'],
+                'ciudad_expedicion' => trim((string) ($payload['ciudad_expedicion'] ?? 'Villavicencio, Meta')),
                 'cliente_id' => $payload['cliente_id'] ?? null,
                 'cliente_nombre' => trim((string) $payload['cliente_nombre']),
                 'cliente_nit' => trim((string) ($payload['cliente_nit'] ?? '')),
                 'cliente_contacto' => trim((string) ($payload['cliente_contacto'] ?? '')),
                 'cliente_direccion' => trim((string) ($payload['cliente_direccion'] ?? '')),
+                'cliente_ciudad' => trim((string) ($payload['cliente_ciudad'] ?? 'Villavicencio.')),
                 'observaciones' => $payload['observaciones'] ?? null,
+                'firma_path' => trim((string) ($payload['firma_path'] ?? '')),
+                'firma_nombre' => trim((string) ($payload['firma_nombre'] ?? 'María Alejandra Flórez Ocampo.')),
+                'firma_cargo' => trim((string) ($payload['firma_cargo'] ?? 'Representante Legal')),
+                'firma_empresa' => trim((string) ($payload['firma_empresa'] ?? 'Proyecciones eléctricas Tesla.')),
                 'estado' => Factura::ESTADO_BORRADOR,
                 'subtotal' => $calculated['subtotal'],
                 'iva_total' => $calculated['iva_total'],
@@ -137,6 +142,9 @@ class FacturaController extends Controller
             if (array_key_exists('fecha', $payload)) {
                 $updatePayload['fecha'] = $payload['fecha'];
             }
+            if (array_key_exists('ciudad_expedicion', $payload)) {
+                $updatePayload['ciudad_expedicion'] = trim((string) ($payload['ciudad_expedicion'] ?? ''));
+            }
             if (array_key_exists('cliente_id', $payload)) {
                 $updatePayload['cliente_id'] = $payload['cliente_id'];
             }
@@ -152,8 +160,23 @@ class FacturaController extends Controller
             if (array_key_exists('cliente_direccion', $payload)) {
                 $updatePayload['cliente_direccion'] = trim((string) ($payload['cliente_direccion'] ?? ''));
             }
+            if (array_key_exists('cliente_ciudad', $payload)) {
+                $updatePayload['cliente_ciudad'] = trim((string) ($payload['cliente_ciudad'] ?? ''));
+            }
             if (array_key_exists('observaciones', $payload)) {
                 $updatePayload['observaciones'] = $payload['observaciones'];
+            }
+            if (array_key_exists('firma_path', $payload)) {
+                $updatePayload['firma_path'] = trim((string) ($payload['firma_path'] ?? ''));
+            }
+            if (array_key_exists('firma_nombre', $payload)) {
+                $updatePayload['firma_nombre'] = trim((string) ($payload['firma_nombre'] ?? ''));
+            }
+            if (array_key_exists('firma_cargo', $payload)) {
+                $updatePayload['firma_cargo'] = trim((string) ($payload['firma_cargo'] ?? ''));
+            }
+            if (array_key_exists('firma_empresa', $payload)) {
+                $updatePayload['firma_empresa'] = trim((string) ($payload['firma_empresa'] ?? ''));
             }
 
             if (array_key_exists('items', $payload)) {
@@ -206,35 +229,6 @@ class FacturaController extends Controller
                 ]);
             }
 
-            $productoIds = $factura->items->pluck('producto_id')->unique()->values();
-            $productos = Producto::query()
-                ->whereIn('id', $productoIds)
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
-
-            foreach ($factura->items as $item) {
-                $producto = $productos->get($item->producto_id);
-                if ($producto === null) {
-                    throw ValidationException::withMessages([
-                        'items' => "El producto #{$item->producto_id} ya no existe.",
-                    ]);
-                }
-
-                if ((float) $item->cantidad > (float) $producto->stock) {
-                    throw ValidationException::withMessages([
-                        'items' => "Stock insuficiente para {$producto->codigo}. Disponible: {$producto->stock}.",
-                    ]);
-                }
-            }
-
-            foreach ($factura->items as $item) {
-                $producto = $productos->get($item->producto_id);
-                $producto->update([
-                    'stock' => (int) ((float) $producto->stock - (float) $item->cantidad),
-                ]);
-            }
-
             $factura->update([
                 'estado' => Factura::ESTADO_EMITIDA,
                 'emitida_at' => now(),
@@ -244,7 +238,7 @@ class FacturaController extends Controller
         });
 
         return response()->json([
-            'message' => 'Factura emitida correctamente. El stock fue descontado.',
+            'message' => 'Factura emitida correctamente.',
             'data' => new FacturaResource($factura->fresh()->load(['creator', 'updater', 'emitter', 'items'])),
         ]);
     }
@@ -304,41 +298,43 @@ class FacturaController extends Controller
             ]);
         }
 
-        $productoIds = collect($items)
-            ->pluck('producto_id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        $productos = Producto::query()
-            ->whereIn('id', $productoIds)
-            ->get()
-            ->keyBy('id');
-
         $calculatedItems = [];
         $subtotal = 0.0;
         $ivaTotal = 0.0;
         $total = 0.0;
 
         foreach ($items as $index => $item) {
-            $productoId = (int) ($item['producto_id'] ?? 0);
+            $productoId = isset($item['producto_id']) ? (int) $item['producto_id'] : null;
             $cantidad = (float) ($item['cantidad'] ?? 0);
+            $descripcion = trim((string) ($item['descripcion'] ?? ''));
+            $unidad = trim((string) ($item['unidad'] ?? 'Un.'));
+            $precioUnitario = (float) ($item['precio_unitario'] ?? 0);
+            $ivaPorcentaje = (float) ($item['iva_porcentaje'] ?? 0);
 
-            $producto = $productos->get($productoId);
-            if ($producto === null) {
+            if ($descripcion === '') {
                 throw ValidationException::withMessages([
-                    "items.{$index}.producto_id" => 'El producto seleccionado no existe.',
+                    "items.{$index}.descripcion" => 'La descripción del item es obligatoria.',
                 ]);
             }
 
-            if (! $producto->activo) {
+            if ($cantidad <= 0) {
                 throw ValidationException::withMessages([
-                    "items.{$index}.producto_id" => 'No puedes facturar productos inactivos.',
+                    "items.{$index}.cantidad" => 'La cantidad debe ser mayor a cero.',
                 ]);
             }
 
-            $precioUnitario = (float) $producto->precio_venta;
-            $ivaPorcentaje = $this->resolveProductoIvaPorcentaje($producto);
+            if ($precioUnitario < 0) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.precio_unitario" => 'El valor unitario no puede ser negativo.',
+                ]);
+            }
+
+            if ($ivaPorcentaje < 0 || $ivaPorcentaje > 100) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.iva_porcentaje" => 'El IVA debe estar entre 0 y 100.',
+                ]);
+            }
+
             $subtotalLinea = round($cantidad * $precioUnitario, 2);
             $ivaValor = round($subtotalLinea * ($ivaPorcentaje / 100), 2);
             $totalLinea = round($subtotalLinea + $ivaValor, 2);
@@ -348,10 +344,10 @@ class FacturaController extends Controller
             $total += $totalLinea;
 
             $calculatedItems[] = [
-                'producto_id' => $producto->id,
+                'producto_id' => $productoId,
                 'orden' => $index + 1,
-                'descripcion' => trim((string) ($producto->descripcion ?: $producto->nombre)),
-                'unidad' => trim((string) ($producto->unidad_medida ?: 'unidad')),
+                'descripcion' => $descripcion,
+                'unidad' => $unidad === '' ? 'Un.' : $unidad,
                 'cantidad' => $cantidad,
                 'precio_unitario' => $precioUnitario,
                 'iva_porcentaje' => $ivaPorcentaje,
@@ -376,7 +372,7 @@ class FacturaController extends Controller
         foreach ($items as $item) {
             FacturaItem::query()->create([
                 'factura_id' => $factura->id,
-                'producto_id' => $item['producto_id'],
+                'producto_id' => $item['producto_id'] ?? null,
                 'orden' => $item['orden'],
                 'descripcion' => $item['descripcion'],
                 'unidad' => $item['unidad'],
@@ -388,14 +384,5 @@ class FacturaController extends Controller
                 'total_linea' => $item['total_linea'],
             ]);
         }
-    }
-
-    private function resolveProductoIvaPorcentaje(Producto $producto): float
-    {
-        if (isset($producto->iva_porcentaje)) {
-            return (float) $producto->iva_porcentaje;
-        }
-
-        return (float) ($producto->iva ?? 0);
     }
 }

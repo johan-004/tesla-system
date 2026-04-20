@@ -16,7 +16,7 @@ class FacturaItem {
 
   final int id;
   final int facturaId;
-  final int productoId;
+  final int? productoId;
   final int orden;
   final String descripcion;
   final String unidad;
@@ -31,7 +31,7 @@ class FacturaItem {
     return FacturaItem(
       id: _parseInt(json['id']),
       facturaId: _parseInt(json['factura_id']),
-      productoId: _parseInt(json['producto_id']),
+      productoId: _parseNullableInt(json['producto_id']),
       orden: _parseInt(json['orden']),
       descripcion: json['descripcion']?.toString() ?? '',
       unidad: json['unidad']?.toString() ?? '',
@@ -54,4 +54,20 @@ int _parseInt(dynamic value, {int fallback = 0}) {
   }
 
   return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+int? _parseNullableInt(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is int) {
+    return value;
+  }
+
+  if (value is double) {
+    return value.toInt();
+  }
+
+  return int.tryParse(value.toString());
 }

@@ -89,11 +89,13 @@ class CotizacionPdfService {
           32,
           tableLayout.pageMarginBottom,
         ),
-        build: (context) => pw.Stack(
-          children: [
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
+        build: (context) => pw.Container(
+          color: PdfColors.white,
+          child: pw.Stack(
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
                 _buildHeader(logo, layout: tableLayout),
                 pw.SizedBox(height: tableLayout.headerBottomSpacing),
                 pw.Text(
@@ -229,23 +231,24 @@ class CotizacionPdfService {
                 ),
                 pw.SizedBox(height: tableLayout.beforeFooterSpacing),
                 _buildFooter(),
-              ],
-            ),
-            if (marcaAgua != null)
-              pw.Positioned.fill(
-                child: pw.Center(
-                  child: pw.Opacity(
-                    opacity: 0.28,
-                    child: pw.SizedBox(
-                      width: 360,
-                      height: 560,
-                      child: pw.Image(marcaAgua, fit: pw.BoxFit.contain),
+                ],
+              ),
+              if (marcaAgua != null)
+                pw.Positioned.fill(
+                  child: pw.Center(
+                    child: pw.Opacity(
+                      opacity: 0.28,
+                      child: pw.SizedBox(
+                        width: 360,
+                        height: 560,
+                        child: pw.Image(marcaAgua, fit: pw.BoxFit.contain),
+                      ),
                     ),
                   ),
                 ),
-              ),
           ],
         ),
+      ),
       ),
     );
 
@@ -254,24 +257,26 @@ class CotizacionPdfService {
         pageFormat: PdfPageFormat.a4,
         theme: pdfTheme,
         margin: const pw.EdgeInsets.fromLTRB(32, 24, 32, 18),
-        build: (context) => pw.Stack(
-          children: [
-            if (marcaAgua != null)
-              pw.Positioned.fill(
-                child: pw.Center(
-                  child: pw.Opacity(
-                    opacity: 0.34,
-                    child: pw.SizedBox(
-                      width: 460,
-                      height: 700,
-                      child: pw.Image(marcaAgua, fit: pw.BoxFit.contain),
+        build: (context) => pw.Container(
+          color: PdfColors.white,
+          child: pw.Stack(
+            children: [
+              if (marcaAgua != null)
+                pw.Positioned.fill(
+                  child: pw.Center(
+                    child: pw.Opacity(
+                      opacity: 0.34,
+                      child: pw.SizedBox(
+                        width: 460,
+                        height: 700,
+                        child: pw.Image(marcaAgua, fit: pw.BoxFit.contain),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
                 _buildHeader(logo, layout: tableLayout),
                 pw.SizedBox(height: 32),
                 pw.Text(
@@ -444,9 +449,10 @@ class CotizacionPdfService {
                 ),
                 pw.SizedBox(height: 8),
                 _buildFooter(),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

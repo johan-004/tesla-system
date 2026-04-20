@@ -14,6 +14,26 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+static void apply_window_icon(GtkWindow* window) {
+  const gchar* candidates[] = {
+      "data/flutter_assets/assets/images/icono_de_aplicacion.png",
+      "assets/images/icono_de_aplicacion.png",
+  };
+
+  for (const gchar* path : candidates) {
+    if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
+      continue;
+    }
+
+    GError* error = nullptr;
+    gtk_window_set_icon_from_file(window, path, &error);
+    if (error == nullptr) {
+      return;
+    }
+    g_error_free(error);
+  }
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -51,6 +71,7 @@ static void my_application_activate(GApplication* application) {
   } else {
     gtk_window_set_title(window, "tesla_mobile");
   }
+  apply_window_icon(window);
 
   gtk_window_set_default_size(window, 1280, 720);
 

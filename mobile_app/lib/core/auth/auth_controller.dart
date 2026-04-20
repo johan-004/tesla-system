@@ -16,6 +16,8 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
   String? token;
   String? tokenType;
   String? userName;
+  String? userEmail;
+  String? userPhone;
   String? userRole;
   List<String> userPermissions = const [];
   String? defaultFirmaPath;
@@ -47,6 +49,8 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
     final storedToken = await _storage.readToken();
     final storedTokenType = await _storage.readTokenType() ?? 'Bearer';
     final storedUserName = await _storage.readUserName();
+    final storedUserEmail = await _storage.readUserEmail();
+    final storedUserPhone = await _storage.readUserPhone();
     final storedUserRole = await _storage.readUserRole();
     final storedUserPermissions = await _storage.readUserPermissions();
 
@@ -59,6 +63,8 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
     token = storedToken.trim();
     tokenType = storedTokenType;
     userName = storedUserName;
+    userEmail = storedUserEmail;
+    userPhone = storedUserPhone;
     userRole = _normalizeRole(storedUserRole);
     userPermissions = storedUserPermissions;
 
@@ -76,18 +82,14 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
         );
       }
 
-      userName = rawUser['name']?.toString() ?? userName ?? '';
-      userRole = _normalizeRole(rawUser['role']?.toString()) ?? userRole ?? '';
-      userPermissions = _parsePermissions(rawUser['permissions'], userRole);
-      defaultFirmaPath = rawUser['firma_path_default']?.toString();
-      defaultFirmaNombre = rawUser['firma_nombre_default']?.toString();
-      defaultFirmaCargo = rawUser['firma_cargo_default']?.toString();
-      defaultFirmaEmpresa = rawUser['firma_empresa_default']?.toString();
+      _applyUserPayload(rawUser);
 
       await _storage.save(
         token: token!,
         tokenType: tokenType!,
         userName: userName ?? '',
+        userEmail: userEmail ?? '',
+        userPhone: userPhone ?? '',
         userRole: userRole ?? '',
         userPermissions: userPermissions,
       );
@@ -138,18 +140,14 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
     final user = rawUser;
     token = parsedToken;
     tokenType = parsedTokenType;
-    userName = user['name']?.toString() ?? '';
-    userRole = _normalizeRole(user['role']?.toString()) ?? '';
-    userPermissions = _parsePermissions(user['permissions'], userRole);
-    defaultFirmaPath = user['firma_path_default']?.toString();
-    defaultFirmaNombre = user['firma_nombre_default']?.toString();
-    defaultFirmaCargo = user['firma_cargo_default']?.toString();
-    defaultFirmaEmpresa = user['firma_empresa_default']?.toString();
+    _applyUserPayload(user);
 
     await _storage.save(
       token: token!,
       tokenType: tokenType!,
       userName: userName ?? '',
+      userEmail: userEmail ?? '',
+      userPhone: userPhone ?? '',
       userRole: userRole ?? '',
       userPermissions: userPermissions,
     );
@@ -187,11 +185,133 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
     _isLoggingOut = false;
   }
 
+  Future<void> updateEmail({
+    required String email,
+    required String currentPassword,
+  }) async {
+    if (!isAuthenticated) {
+      throw ApiException(
+          'No hay una sesión activa para actualizar el perfil.', 401);
+    }
+
+    final response = await ApiClient(token: token, tokenType: tokenType).patch(
+      '/auth/email',
+      {
+        'email': email.trim(),
+        'current_password': currentPassword,
+      },
+    );
+
+    final rawUser = response['data'];
+    if (rawUser is! Map<String, dynamic>) {
+      throw ApiException('La API no devolvió el usuario actualizado.', 0);
+    }
+
+    _applyUserPayload(rawUser);
+    await _storage.save(
+      token: token!,
+      tokenType: tokenType!,
+      userName: userName ?? '',
+      userEmail: userEmail ?? '',
+      userPhone: userPhone ?? '',
+      userRole: userRole ?? '',
+      userPermissions: userPermissions,
+    );
+    notifyListeners();
+  }
+
+  Future<void> updatePhone({
+    required String phone,
+    required String currentPassword,
+  }) async {
+    if (!isAuthenticated) {
+      throw ApiException(
+          'No hay una sesión activa para actualizar el perfil.', 401);
+    }
+
+    final response = await ApiClient(token: token, tokenType: tokenType).patch(
+      '/auth/phone',
+      {
+        'phone': phone.trim(),
+        'current_password': currentPassword,
+      },
+    );
+
+    final rawUser = response['data'];
+    if (rawUser is! Map<String, dynamic>) {
+      throw ApiException('La API no devolvió el usuario actualizado.', 0);
+    }
+
+    _applyUserPayload(rawUser);
+    await _storage.save(
+      token: token!,
+      tokenType: tokenType!,
+      userName: userName ?? '',
+      userEmail: userEmail ?? '',
+      userPhone: userPhone ?? '',
+      userRole: userRole ?? '',
+      userPermissions: userPermissions,
+    );
+    notifyListeners();
+  }
+
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    if (!isAuthenticated) {
+      throw ApiException(
+          'No hay una sesión activa para actualizar la contraseña.', 401);
+    }
+
+    await ApiClient(token: token, tokenType: tokenType).patch(
+      '/auth/password',
+      {
+        'current_password': currentPassword,
+        'password': newPassword,
+        'password_confirmation': newPasswordConfirmation,
+      },
+    );
+  }
+
+  Future<void> requestPasswordRecovery({
+    required String email,
+  }) async {
+    await ApiClient().post('/auth/forgot-password', {
+      'email': email.trim(),
+    });
+  }
+
+  Future<void> requestPasswordRecoveryBySms({
+    required String phone,
+  }) async {
+    await ApiClient().post('/auth/forgot-password-sms', {
+      'phone': phone.trim(),
+    });
+  }
+
+  Future<void> resetPasswordBySms({
+    required String phone,
+    required String code,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    await ApiClient().post('/auth/reset-password-sms', {
+      'phone': phone.trim(),
+      'code': code.trim(),
+      'password': newPassword,
+      'password_confirmation': newPasswordConfirmation,
+    });
+  }
+
   Future<void> _clearLocalSession({bool notify = true}) async {
     _stopInactivityTracking();
     token = null;
     tokenType = null;
     userName = null;
+    userEmail = null;
+    userPhone = null;
     userRole = null;
     userPermissions = const [];
     defaultFirmaPath = null;
@@ -285,6 +405,18 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
       default:
         return role;
     }
+  }
+
+  void _applyUserPayload(Map<String, dynamic> rawUser) {
+    userName = rawUser['name']?.toString() ?? userName ?? '';
+    userEmail = rawUser['email']?.toString() ?? userEmail ?? '';
+    userPhone = rawUser['phone']?.toString() ?? userPhone ?? '';
+    userRole = _normalizeRole(rawUser['role']?.toString()) ?? userRole ?? '';
+    userPermissions = _parsePermissions(rawUser['permissions'], userRole);
+    defaultFirmaPath = rawUser['firma_path_default']?.toString();
+    defaultFirmaNombre = rawUser['firma_nombre_default']?.toString();
+    defaultFirmaCargo = rawUser['firma_cargo_default']?.toString();
+    defaultFirmaEmpresa = rawUser['firma_empresa_default']?.toString();
   }
 
   void _startInactivityTracking() {

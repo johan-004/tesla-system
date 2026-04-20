@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/auth/auth_controller.dart';
+import '../../dashboard/presentation/dashboard_overview.dart';
 import '../../cotizaciones/presentation/cotizaciones_screen.dart';
 import '../../facturas/presentation/facturas_screen.dart';
+import '../../profile/presentation/profile_screen.dart';
 import '../../productos/presentation/productos_screen.dart';
 import '../../servicios/presentation/servicios_screen.dart';
 
@@ -12,6 +14,7 @@ enum DesktopModule {
   servicios,
   cotizaciones,
   facturas,
+  perfil,
 }
 
 class DesktopShellScreen extends StatefulWidget {
@@ -118,6 +121,11 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
         module: DesktopModule.facturas,
         label: 'Facturas',
         icon: Icons.receipt_long_outlined,
+      ),
+      _DesktopNavItem(
+        module: DesktopModule.perfil,
+        label: 'Perfil',
+        icon: Icons.person_outline_rounded,
       ),
     ];
 
@@ -387,6 +395,15 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
             embedded: true,
           ),
         );
+      case DesktopModule.perfil:
+        return _DesktopModuleConfig(
+          title: 'Perfil',
+          subtitle: 'Actualiza correo y contraseña de tu cuenta.',
+          content: ProfileScreen(
+            authController: widget.authController,
+            embedded: true,
+          ),
+        );
     }
   }
 
@@ -406,147 +423,12 @@ class _DesktopDashboardOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cards = [
-      (
-        title: 'Productos',
-        subtitle: 'Administrar catalogo, filtros y estados.',
-        icon: Icons.inventory_2_outlined,
-        module: DesktopModule.productos,
-      ),
-      (
-        title: 'Servicios',
-        subtitle: 'Consultar el modulo operativo de servicios.',
-        icon: Icons.design_services_outlined,
-        module: DesktopModule.servicios,
-      ),
-      (
-        title: 'Cotizaciones',
-        subtitle: 'Consultar y mantener la base inicial del modulo.',
-        icon: Icons.request_quote_outlined,
-        module: DesktopModule.cotizaciones,
-      ),
-      (
-        title: 'Facturas',
-        subtitle: 'Facturación interna con estados y emisión.',
-        icon: Icons.receipt_long_outlined,
-        module: DesktopModule.facturas,
-      ),
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [
-                  Color(0xFF0F172A),
-                  Color(0xFF134E4A),
-                  Color(0xFF0F766E)
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Escritorio Tesla',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 10),
-                      Text(
-                        'Usa la barra lateral para moverte entre modulos. El acceso inicial abre el dashboard con entrada visible a Productos y Servicios.',
-                        style: TextStyle(
-                          color: Color(0xFFE2E8F0),
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Text(
-                    authController.userRole ?? 'Sin rol',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: cards.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 18,
-              childAspectRatio: 1.8,
-            ),
-            itemBuilder: (context, index) {
-              final card = cards[index];
-              return InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: () => onSelectModule(card.module),
-                child: Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(card.icon, color: const Color(0xFF0F766E), size: 30),
-                      const Spacer(),
-                      Text(
-                        card.title,
-                        style: const TextStyle(
-                          color: Color(0xFF0F172A),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        card.subtitle,
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+    return DashboardOverview(
+      authController: authController,
+      onOpenProductos: () => onSelectModule(DesktopModule.productos),
+      onOpenServicios: () => onSelectModule(DesktopModule.servicios),
+      onOpenCotizaciones: () => onSelectModule(DesktopModule.cotizaciones),
+      onOpenFacturas: () => onSelectModule(DesktopModule.facturas),
     );
   }
 }

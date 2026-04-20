@@ -6,6 +6,8 @@ class TokenStorage {
   static const _tokenKey = 'auth_token';
   static const _tokenTypeKey = 'auth_token_type';
   static const _userNameKey = 'auth_user_name';
+  static const _userEmailKey = 'auth_user_email';
+  static const _userPhoneKey = 'auth_user_phone';
   static const _userRoleKey = 'auth_user_role';
   static const _userPermissionsKey = 'auth_user_permissions';
 
@@ -13,6 +15,8 @@ class TokenStorage {
     required String token,
     required String tokenType,
     required String userName,
+    String userEmail = '',
+    String userPhone = '',
     required String userRole,
     List<String> userPermissions = const [],
   }) async {
@@ -20,6 +24,8 @@ class TokenStorage {
     await prefs.setString(_tokenKey, token);
     await prefs.setString(_tokenTypeKey, tokenType);
     await prefs.setString(_userNameKey, userName);
+    await prefs.setString(_userEmailKey, userEmail);
+    await prefs.setString(_userPhoneKey, userPhone);
     await prefs.setString(_userRoleKey, userRole);
     await prefs.setString(_userPermissionsKey, jsonEncode(userPermissions));
   }
@@ -37,6 +43,16 @@ class TokenStorage {
   Future<String?> readUserName() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_userNameKey);
+  }
+
+  Future<String?> readUserEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userEmailKey);
+  }
+
+  Future<String?> readUserPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userPhoneKey);
   }
 
   Future<String?> readUserRole() async {
@@ -68,6 +84,8 @@ class TokenStorage {
     await prefs.remove(_tokenKey);
     await prefs.remove(_tokenTypeKey);
     await prefs.remove(_userNameKey);
+    await prefs.remove(_userEmailKey);
+    await prefs.remove(_userPhoneKey);
     await prefs.remove(_userRoleKey);
     await prefs.remove(_userPermissionsKey);
   }
