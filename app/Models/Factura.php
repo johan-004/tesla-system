@@ -17,6 +17,7 @@ class Factura extends Model
     public const ESTADOS = [
         self::ESTADO_BORRADOR,
         self::ESTADO_EMITIDA,
+        self::ESTADO_ANULADA,
     ];
 
     protected $fillable = [
@@ -113,6 +114,11 @@ class Factura extends Model
     public function canBeEmitted(): bool
     {
         return $this->estado === self::ESTADO_BORRADOR;
+    }
+
+    public function canBeAnnulled(): bool
+    {
+        return in_array($this->estado, [self::ESTADO_BORRADOR, self::ESTADO_EMITIDA], true);
     }
 
     public function cliente()

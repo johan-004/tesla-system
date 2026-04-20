@@ -2,10 +2,25 @@ import 'package:flutter/foundation.dart';
 
 class AppConfig {
   static const _apiBaseUrlFromEnv = String.fromEnvironment('API_BASE_URL');
+  static const _releaseFallbackApiBaseUrl = 'https://api.example.com/api/v1';
 
   static String get apiBaseUrl {
-    if (_apiBaseUrlFromEnv.trim().isNotEmpty) {
-      return _apiBaseUrlFromEnv.trim();
+    final configured = _apiBaseUrlFromEnv.trim().isNotEmpty
+        ? _apiBaseUrlFromEnv.trim()
+        : _defaultUrlByPlatform();
+
+    if (!kDebugMode && configured.toLowerCase().startsWith('http://')) {
+      throw StateError(
+        'API_BASE_URL insegura en release. Usa HTTPS para proteger credenciales y tokens.',
+      );
+    }
+
+    return configured;
+  }
+
+  static String _defaultUrlByPlatform() {
+    if (!kDebugMode) {
+      return _releaseFallbackApiBaseUrl;
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {

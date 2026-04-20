@@ -36,6 +36,11 @@ class FacturasRepository {
     return Factura.fromJson(response['data'] as Map<String, dynamic>);
   }
 
+  Future<Factura> anularFactura(int id) async {
+    final response = await _apiClient.patch('/facturas/$id/anular', {});
+    return Factura.fromJson(response['data'] as Map<String, dynamic>);
+  }
+
   Future<List<Producto>> fetchProductosDisponibles() async {
     const perPage = 100;
     final collected = <Producto>[];

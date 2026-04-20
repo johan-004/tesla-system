@@ -169,6 +169,12 @@ class FacturasController extends ChangeNotifier {
     return updated;
   }
 
+  Future<Factura> anularFactura(Factura factura) async {
+    final updated = await repository.anularFactura(factura.id);
+    await refreshAfterMutation(reason: 'anular-factura');
+    return updated;
+  }
+
   Future<void> refreshAfterMutation({required String reason}) async {
     await refresh(silent: true, reason: reason);
   }

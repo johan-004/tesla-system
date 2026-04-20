@@ -133,6 +133,8 @@ Route::prefix('v1')->group(function () {
             ->middleware('permission:facturacion.update');
         Route::patch('facturas/{factura}/emitir', [FacturaController::class, 'emitir'])
             ->middleware('permission:facturacion.update');
+        Route::patch('facturas/{factura}/anular', [FacturaController::class, 'anular'])
+            ->middleware('permission:facturacion.update');
         Route::delete('facturas/{factura}', [FacturaController::class, 'destroy'])
             ->middleware('permission:facturacion.delete');
 

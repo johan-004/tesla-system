@@ -257,6 +257,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
                       _buildHeroMetric('Total', '${stats.total}'),
                       _buildHeroMetric('Borrador', '${stats.borrador}'),
                       _buildHeroMetric('Emitida', '${stats.emitida}'),
+                      _buildHeroMetric('Anulada', '${stats.anulada}'),
                     ],
                   ),
                 ),
@@ -281,6 +282,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
                   compact: true,
                 ),
                 _buildHeroMetric('Emitida', '${stats.emitida}', compact: true),
+                _buildHeroMetric('Anulada', '${stats.anulada}', compact: true),
               ],
             ),
           ],
@@ -460,6 +462,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
         DropdownMenuItem(value: '__all__', child: Text('Todos')),
         DropdownMenuItem(value: 'borrador', child: Text('Borrador')),
         DropdownMenuItem(value: 'emitida', child: Text('Emitida')),
+        DropdownMenuItem(value: 'anulada', child: Text('Anulada')),
       ],
       onChanged: (value) {
         if (value == null) {
@@ -750,6 +753,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
   List<Widget> _buildActionButtons(Factura factura, {required bool compact}) {
     final canEditar = _canEdit && factura.isBorrador;
     final canEmitir = _canEdit && factura.isBorrador;
+    final canAnular = _canEdit && (factura.isBorrador || factura.isEmitida);
 
     final textStyle = TextStyle(
       fontWeight: FontWeight.w700,
@@ -783,6 +787,15 @@ class _FacturasScreenState extends State<FacturasScreen> {
           ),
           child: Text('Emitir', style: textStyle),
         ),
+      if (canAnular)
+        FilledButton(
+          onPressed: () => _anularFactura(factura),
+          style: FilledButton.styleFrom(
+            backgroundColor: _rose600,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          child: Text('Anular', style: textStyle),
+        ),
     ];
   }
 
@@ -790,11 +803,13 @@ class _FacturasScreenState extends State<FacturasScreen> {
     final normalized = estado.trim().toLowerCase();
     final color = switch (normalized) {
       'emitida' => _emerald600,
+      'anulada' => _rose600,
       _ => _amber700,
     };
 
     final label = switch (normalized) {
       'emitida' => 'Emitida',
+      'anulada' => 'Anulada',
       _ => 'Borrador',
     };
 
@@ -1004,6 +1019,35 @@ class _FacturasScreenState extends State<FacturasScreen> {
       }
 
       _showSnack('Factura ${updated.codigo} emitida correctamente.');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnack('$error', isError: true);
+    }
+  }
+
+  Future<void> _anularFactura(Factura factura) async {
+    final confirmed = await _confirmDialog(
+      title: 'Anular factura',
+      message:
+          'La factura cambiará a anulada. Esta acción no se puede deshacer. ¿Deseas continuar?',
+      confirmText: 'Anular',
+      confirmColor: _rose600,
+    );
+
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    try {
+      final updated = await _controller.anularFactura(factura);
+      if (!mounted) {
+        return;
+      }
+
+      _showSnack('Factura ${updated.codigo} anulada correctamente.');
     } catch (error) {
       if (!mounted) {
         return;

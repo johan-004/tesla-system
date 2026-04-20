@@ -11,15 +11,20 @@ class SmsSender
     public function send(string $phone, string $message): void
     {
         $driver = (string) config('sms.driver', 'log');
+        $isProduction = app()->environment('production');
 
         if ($driver === 'twilio') {
             $this->sendWithTwilio($phone, $message);
             return;
         }
 
+        if ($isProduction) {
+            throw new RuntimeException('SMS driver inseguro para producción. Configura un proveedor real (ej. Twilio).');
+        }
+
         Log::channel(config('sms.log_channel'))->info('SMS de recuperación', [
-            'to' => $phone,
-            'message' => $message,
+            'to' => $this->maskPhone($phone),
+            'message' => '[REDACTED]',
         ]);
     }
 
@@ -44,5 +49,19 @@ class SmsSender
         if (! $response->successful()) {
             throw new RuntimeException('No fue posible enviar el SMS de recuperación.');
         }
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        if ($digits === '') {
+            return '***';
+        }
+
+        if (strlen($digits) <= 4) {
+            return str_repeat('*', strlen($digits));
+        }
+
+        return str_repeat('*', strlen($digits) - 4).substr($digits, -4);
     }
 }

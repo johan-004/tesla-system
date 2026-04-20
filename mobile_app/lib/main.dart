@@ -41,9 +41,14 @@ class _TeslaMobileAppState extends State<TeslaMobileApp> {
   }
 
   Future<void> _bootstrap() async {
-    await widget.authController.restoreSession();
-    if (mounted) {
-      setState(() => _loading = false);
+    try {
+      await widget.authController.restoreSession();
+    } catch (_) {
+      // Evita bloqueo infinito del splash ante fallos de almacenamiento/plataforma.
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 

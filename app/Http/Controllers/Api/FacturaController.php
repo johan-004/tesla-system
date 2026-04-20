@@ -58,7 +58,7 @@ class FacturaController extends Controller
                 'total' => (clone $baseQuery)->count(),
                 'borrador' => (clone $baseQuery)->where('estado', Factura::ESTADO_BORRADOR)->count(),
                 'emitida' => (clone $baseQuery)->where('estado', Factura::ESTADO_EMITIDA)->count(),
-                'anulada' => 0,
+                'anulada' => (clone $baseQuery)->where('estado', Factura::ESTADO_ANULADA)->count(),
             ],
         ]);
     }
@@ -240,6 +240,41 @@ class FacturaController extends Controller
         return response()->json([
             'message' => 'Factura emitida correctamente.',
             'data' => new FacturaResource($factura->fresh()->load(['creator', 'updater', 'emitter', 'items'])),
+        ]);
+    }
+
+    public function anular(Request $request, Factura $factura): JsonResponse
+    {
+        $actor = $request->user();
+
+        if (! $factura->canBeAnnulled()) {
+            return response()->json([
+                'message' => 'Solo se pueden anular facturas en estado borrador o emitida.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($factura, $actor) {
+            $factura = Factura::query()
+                ->lockForUpdate()
+                ->findOrFail($factura->id);
+
+            if (! $factura->canBeAnnulled()) {
+                throw ValidationException::withMessages([
+                    'estado' => 'La factura ya cambió de estado y no puede anularse.',
+                ]);
+            }
+
+            $factura->update([
+                'estado' => Factura::ESTADO_ANULADA,
+                'anulada_at' => now(),
+                'anulada_by' => $actor?->id,
+                'updated_by' => $actor?->id,
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Factura anulada correctamente.',
+            'data' => new FacturaResource($factura->fresh()->load(['creator', 'updater', 'emitter', 'annuller', 'items'])),
         ]);
     }
 

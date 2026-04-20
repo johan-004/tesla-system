@@ -41,9 +41,14 @@ class AuthController extends Controller
         }
 
         $deviceName = trim((string) $request->input('device_name', 'flutter-app'));
+        $tokenAbilities = $user->permissions();
+        if ($tokenAbilities === []) {
+            $tokenAbilities = ['auth'];
+        }
+
         $token = $user->createToken(
             $deviceName !== '' ? $deviceName : 'flutter-app',
-            ['*'],
+            $tokenAbilities,
         )->plainTextToken;
 
         return response()->json([
