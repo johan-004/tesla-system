@@ -14,7 +14,9 @@ class CotizacionDetalle extends Model
     protected $fillable = [
         'cotizacion_id',
         'servicio_id',
+        'producto_id',
         'categoria',
+        'codigo',
         'descripcion',
         'unidad',
         'cantidad',
@@ -31,5 +33,10 @@ class CotizacionDetalle extends Model
     public function servicio()
     {
         return $this->belongsTo(Servicio::class);
+    }
+
+    public function producto()
+    {
+        return $this->belongsTo(Producto::class);
     }
 }

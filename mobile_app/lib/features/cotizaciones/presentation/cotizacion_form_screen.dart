@@ -12,6 +12,7 @@ import 'package:signature/signature.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/layout/adaptive_layout.dart';
 import '../../../shared/utils/price_formatter.dart';
+import '../../productos/domain/producto.dart';
 import '../../servicios/domain/servicio.dart';
 import '../cotizaciones_controller.dart';
 import '../domain/cotizacion.dart';
@@ -360,6 +361,7 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
   DateTime _fecha = DateTime.now();
   bool _isSaving = false;
   bool _isLoadingServicios = false;
+  List<Producto> _productos = const [];
   bool _isUploadingFirma = false;
   bool _usarFirmaPredeterminada = false;
   bool _isNormalizingObservaciones = false;
@@ -1248,6 +1250,10 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
         children: [
           _TableHeaderCell(width: _editableItemWidth(isDesktop), label: 'ITEM'),
           _TableHeaderCell(
+            width: _editableCodigoWidth(isDesktop),
+            label: 'CÓDIGO',
+          ),
+          _TableHeaderCell(
             width: _editableDescripcionWidth(isDesktop),
             label: 'DESCRIPCIÓN',
           ),
@@ -1298,16 +1304,32 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
             ),
           ),
           _TableValueCell(
+            width: _editableCodigoWidth(isDesktop),
+            child: Text(
+              linea.codigo.isEmpty ? '-' : linea.codigo,
+              style: TextStyle(
+                color: linea.codigo.isEmpty ? _ink500 : _ink900,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          _TableValueCell(
             width: _editableDescripcionWidth(isDesktop),
             child: _ServicioPickerField(
               enabled: !_isSaving &&
                   (_servicios.isNotEmpty || _catalogoError != null),
               selectedLabel: linea.descripcion,
               servicios: _servicios,
+              productos: _productos,
               catalogoError: _catalogoError,
               onSelected: (servicio) {
                 setState(() {
                   linea.applyServicio(servicio);
+                });
+              },
+              onProductoSelected: (producto) {
+                setState(() {
+                  linea.applyProducto(producto);
                 });
               },
             ),
@@ -2316,11 +2338,14 @@ class _CotizacionFormScreenState extends State<CotizacionFormScreen> {
       await widget.controller.ensureCatalogoServiciosLoaded(
         notifyListeners: false,
       );
+      final productos =
+          await widget.controller.repository.fetchProductosDisponibles();
       if (!mounted) {
         return;
       }
 
       setState(() {
+        _productos = productos;
         _isLoadingServicios = false;
         for (final linea in _lineas) {
           final servicioId = linea.servicioId;
@@ -3766,6 +3791,12 @@ class _PreviewTableHeaderRow extends StatelessWidget {
             alignment: Alignment.center,
           ),
           _PreviewTableCell(
+            width: _previewCodigoWidth(isDesktop),
+            label: 'CÓDIGO',
+            isHeader: true,
+            alignment: Alignment.center,
+          ),
+          _PreviewTableCell(
             width: _previewDescripcionWidth(isDesktop),
             label: 'DESCRIPCIÓN',
             isHeader: true,
@@ -3826,6 +3857,11 @@ class _PreviewTableDataRow extends StatelessWidget {
             alignment: Alignment.centerRight,
           ),
           _PreviewTableCell(
+            width: _previewCodigoWidth(isDesktop),
+            label: _fallbackText(detalle.codigo, fallback: '-'),
+            alignment: Alignment.center,
+          ),
+          _PreviewTableCell(
             width: _previewDescripcionWidth(isDesktop),
             label: _fallbackText(detalle.descripcion, fallback: '-'),
           ),
@@ -3878,6 +3914,11 @@ class _PreviewTablePlaceholderRow extends StatelessWidget {
             width: _previewItemWidth(isDesktop),
             label: itemLabel,
             alignment: Alignment.centerRight,
+          ),
+          _PreviewTableCell(
+            width: _previewCodigoWidth(isDesktop),
+            label: '',
+            alignment: Alignment.center,
           ),
           _PreviewTableCell(
             width: _previewDescripcionWidth(isDesktop),
@@ -4176,7 +4217,8 @@ String _trimObservacionesForLayout(String raw, {required int maxWords}) {
 }
 
 double _editableItemWidth(bool isDesktop) => isDesktop ? 72 : 52;
-double _editableDescripcionWidth(bool isDesktop) => isDesktop ? 398 : 240;
+double _editableCodigoWidth(bool isDesktop) => isDesktop ? 108 : 94;
+double _editableDescripcionWidth(bool isDesktop) => isDesktop ? 318 : 200;
 double _editableUnidadWidth(bool isDesktop) => isDesktop ? 118 : 88;
 double _editableCantidadWidth(bool isDesktop) => isDesktop ? 118 : 84;
 double _editableValorWidth(bool isDesktop) => isDesktop ? 164 : 124;
@@ -4184,6 +4226,7 @@ double _editableTotalWidth(bool isDesktop) => isDesktop ? 164 : 124;
 double _editableAccionWidth(bool isDesktop) => isDesktop ? 78 : 60;
 double _editableTableMinWidth(bool isDesktop) =>
     _editableItemWidth(isDesktop) +
+    _editableCodigoWidth(isDesktop) +
     _editableDescripcionWidth(isDesktop) +
     _editableUnidadWidth(isDesktop) +
     _editableCantidadWidth(isDesktop) +
@@ -4192,6 +4235,7 @@ double _editableTableMinWidth(bool isDesktop) =>
     _editableAccionWidth(isDesktop);
 double _editableTotalLabelWidth(bool isDesktop) =>
     _editableItemWidth(isDesktop) +
+    _editableCodigoWidth(isDesktop) +
     _editableDescripcionWidth(isDesktop) +
     _editableUnidadWidth(isDesktop) +
     _editableCantidadWidth(isDesktop) +
@@ -4200,13 +4244,15 @@ double _editableTotalValueWidth(bool isDesktop) =>
     _editableTotalWidth(isDesktop) + _editableAccionWidth(isDesktop);
 
 double _previewItemWidth(bool isDesktop) => isDesktop ? 72 : 52;
-double _previewDescripcionWidth(bool isDesktop) => isDesktop ? 430 : 240;
+double _previewCodigoWidth(bool isDesktop) => isDesktop ? 110 : 96;
+double _previewDescripcionWidth(bool isDesktop) => isDesktop ? 350 : 200;
 double _previewUnidadWidth(bool isDesktop) => isDesktop ? 110 : 88;
 double _previewCantidadWidth(bool isDesktop) => isDesktop ? 96 : 80;
 double _previewValorWidth(bool isDesktop) => isDesktop ? 160 : 124;
 double _previewTotalWidth(bool isDesktop) => isDesktop ? 172 : 124;
 double _previewTableMinWidth(bool isDesktop) =>
     _previewItemWidth(isDesktop) +
+    _previewCodigoWidth(isDesktop) +
     _previewDescripcionWidth(isDesktop) +
     _previewUnidadWidth(isDesktop) +
     _previewCantidadWidth(isDesktop) +
@@ -4214,6 +4260,7 @@ double _previewTableMinWidth(bool isDesktop) =>
     _previewTotalWidth(isDesktop);
 double _previewTotalLabelWidth(bool isDesktop) =>
     _previewItemWidth(isDesktop) +
+    _previewCodigoWidth(isDesktop) +
     _previewDescripcionWidth(isDesktop) +
     _previewUnidadWidth(isDesktop) +
     _previewCantidadWidth(isDesktop) +
@@ -4239,6 +4286,10 @@ class _DocumentInput extends StatelessWidget {
     return TextField(
       controller: controller,
       textCapitalization: textCapitalization,
+      enableInteractiveSelection: true,
+      contextMenuBuilder: (context, editableTextState) =>
+          AdaptiveTextSelectionToolbar.editableText(
+              editableTextState: editableTextState),
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
@@ -4371,14 +4422,18 @@ class _ServicioPickerField extends StatelessWidget {
   const _ServicioPickerField({
     required this.selectedLabel,
     required this.servicios,
+    required this.productos,
     required this.onSelected,
+    required this.onProductoSelected,
     required this.enabled,
     required this.catalogoError,
   });
 
   final String selectedLabel;
   final List<Servicio> servicios;
+  final List<Producto> productos;
   final ValueChanged<Servicio> onSelected;
+  final ValueChanged<Producto> onProductoSelected;
   final bool enabled;
   final String? catalogoError;
 
@@ -4386,62 +4441,77 @@ class _ServicioPickerField extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasValue = selectedLabel.trim().isNotEmpty;
 
-    return InkWell(
-      onTap: !enabled
-          ? null
-          : () async {
-              final selected = await showDialog<Servicio>(
-                context: context,
-                builder: (_) => _ServicioPickerDialog(
-                  servicios: servicios,
-                ),
-              );
-
-              if (selected != null) {
-                onSelected(selected);
-              }
-            },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: enabled ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: hasValue
-                ? _CotizacionFormScreenState._paperLine
-                : const Color(0xFFCBD5E1),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: enabled ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasValue
+              ? _CotizacionFormScreenState._paperLine
+              : const Color(0xFFCBD5E1),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                hasValue
-                    ? selectedLabel
-                    : (catalogoError != null
-                        ? 'Catálogo no disponible'
-                        : 'Seleccionar servicio'),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: hasValue
-                      ? _CotizacionFormScreenState._ink900
-                      : _CotizacionFormScreenState._ink500,
-                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.search_rounded,
-              size: 18,
-              color: enabled
-                  ? _CotizacionFormScreenState._ink700
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            hasValue
+                ? selectedLabel
+                : (catalogoError != null
+                    ? 'Catálogo no disponible'
+                    : 'Seleccionar servicio o producto'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: hasValue
+                  ? _CotizacionFormScreenState._ink900
                   : _CotizacionFormScreenState._ink500,
+              fontWeight: hasValue ? FontWeight.w600 : FontWeight.w500,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 2,
+            children: [
+              TextButton.icon(
+                onPressed: !enabled
+                    ? null
+                    : () async {
+                        final selected = await showDialog<Servicio>(
+                          context: context,
+                          builder: (_) => _ServicioPickerDialog(
+                            servicios: servicios,
+                          ),
+                        );
+                        if (selected != null) {
+                          onSelected(selected);
+                        }
+                      },
+                icon: const Icon(Icons.design_services_outlined, size: 16),
+                label: const Text('Servicios'),
+              ),
+              TextButton.icon(
+                onPressed: !enabled
+                    ? null
+                    : () async {
+                        final selected = await showDialog<Producto>(
+                          context: context,
+                          builder: (_) => _ProductoPickerDialog(
+                            productos: productos,
+                          ),
+                        );
+                        if (selected != null) {
+                          onProductoSelected(selected);
+                        }
+                      },
+                icon: const Icon(Icons.inventory_2_outlined, size: 16),
+                label: const Text('Productos'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -4730,10 +4800,141 @@ class _ServicioPickerDialogState extends State<_ServicioPickerDialog> {
   }
 }
 
+class _ProductoPickerDialog extends StatefulWidget {
+  const _ProductoPickerDialog({required this.productos});
+
+  final List<Producto> productos;
+
+  @override
+  State<_ProductoPickerDialog> createState() => _ProductoPickerDialogState();
+}
+
+class _ProductoPickerDialogState extends State<_ProductoPickerDialog> {
+  late final TextEditingController _searchController;
+  String _query = '';
+  String _categoriaSeleccionada = '__all__';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categorias = <String>{
+      for (final producto in widget.productos)
+        producto.categoriaNombre.trim().isEmpty
+            ? 'Sin categoría'
+            : producto.categoriaNombre.trim(),
+    }.toList()
+      ..sort();
+
+    final filtered = widget.productos.where((producto) {
+      final query = _query.trim().toLowerCase();
+      final categoriaNombre = producto.categoriaNombre.trim().isEmpty
+          ? 'Sin categoría'
+          : producto.categoriaNombre.trim();
+      final matchesCategoria = _categoriaSeleccionada == '__all__'
+          ? true
+          : categoriaNombre == _categoriaSeleccionada;
+      final matchesBusqueda = query.isEmpty
+          ? true
+          : producto.nombre.toLowerCase().contains(query) ||
+              producto.codigo.toLowerCase().contains(query);
+      return matchesCategoria && matchesBusqueda;
+    }).toList();
+
+    return AlertDialog(
+      title: const Text('Seleccionar producto'),
+      content: SizedBox(
+        width: 640,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'Buscar producto',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+            ),
+            const SizedBox(height: 10),
+            InputDecorator(
+              decoration: InputDecoration(
+                labelText: 'Categoría',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: _categoriaSeleccionada,
+                  items: [
+                    const DropdownMenuItem(
+                      value: '__all__',
+                      child: Text('Todas'),
+                    ),
+                    for (final categoria in categorias)
+                      DropdownMenuItem(
+                        value: categoria,
+                        child: Text(categoria),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _categoriaSeleccionada = value);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 320,
+              child: ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final producto = filtered[index];
+                  return ListTile(
+                    title: Text(producto.nombre),
+                    subtitle: Text(
+                      '${producto.codigo} · ${producto.categoriaNombre} · ${producto.unidadMedida} · ${PriceFormatter.formatCopLatino(producto.precioVenta)}',
+                    ),
+                    onTap: () => Navigator.of(context).pop(producto),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cerrar'),
+        ),
+      ],
+    );
+  }
+}
+
 class _LineaCotizacionDraft {
   _LineaCotizacionDraft({
     required this.item,
+    required this.tipoItem,
     required this.servicioId,
+    required this.productoId,
+    required this.codigo,
     required this.descripcion,
     required this.unidad,
     required this.precioUnitario,
@@ -4743,7 +4944,10 @@ class _LineaCotizacionDraft {
   factory _LineaCotizacionDraft.empty({required int item}) {
     return _LineaCotizacionDraft(
       item: item,
+      tipoItem: 'servicio',
       servicioId: null,
+      productoId: null,
+      codigo: '',
       descripcion: '',
       unidad: '',
       precioUnitario: 0,
@@ -4754,7 +4958,10 @@ class _LineaCotizacionDraft {
   factory _LineaCotizacionDraft.fromDetalle(CotizacionDetalle detalle) {
     return _LineaCotizacionDraft(
       item: detalle.item,
+      tipoItem: detalle.tipoItem,
       servicioId: detalle.servicioId,
+      productoId: detalle.productoId,
+      codigo: detalle.codigo,
       descripcion: detalle.descripcion,
       unidad: detalle.unidad,
       precioUnitario: PriceFormatter.parse(detalle.precioUnitario),
@@ -4763,7 +4970,10 @@ class _LineaCotizacionDraft {
   }
 
   int item;
+  String tipoItem;
   int? servicioId;
+  int? productoId;
+  String codigo;
   String descripcion;
   String unidad;
   double precioUnitario;
@@ -4773,7 +4983,10 @@ class _LineaCotizacionDraft {
   double get total => cantidad * precioUnitario;
 
   void applyServicio(Servicio servicio, {bool preserveCantidad = false}) {
+    tipoItem = 'servicio';
     servicioId = servicio.id;
+    productoId = null;
+    codigo = servicio.codigo;
     descripcion = servicio.descripcion;
     unidad = servicio.unidad;
     precioUnitario = PriceFormatter.parse(servicio.precioUnitario);
@@ -4782,8 +4995,24 @@ class _LineaCotizacionDraft {
     }
   }
 
+  void applyProducto(Producto producto, {bool preserveCantidad = false}) {
+    tipoItem = 'producto';
+    productoId = producto.id;
+    servicioId = null;
+    codigo = producto.codigo;
+    descripcion = producto.nombre;
+    unidad = producto.unidadMedida;
+    precioUnitario = PriceFormatter.parse(producto.precioVenta);
+    if (!preserveCantidad && cantidadController.text.trim().isEmpty) {
+      cantidadController.text = '';
+    }
+  }
+
   void reset() {
     servicioId = null;
+    productoId = null;
+    codigo = '';
+    tipoItem = 'servicio';
     descripcion = '';
     unidad = '';
     precioUnitario = 0;
@@ -4796,7 +5025,10 @@ class _LineaCotizacionDraft {
 
     return {
       'item': item,
+      'tipo_item': tipoItem,
       'servicio_id': servicioId,
+      'producto_id': productoId,
+      'codigo': codigo.trim(),
       'descripcion': descripcion.trim(),
       'unidad': unidad.trim(),
       'cantidad': PriceFormatter.normalize(cantidadValue.toString()),

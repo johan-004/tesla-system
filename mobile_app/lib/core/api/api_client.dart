@@ -9,6 +9,8 @@ import '../config/app_config.dart';
 class ApiClient {
   ApiClient({this.token, this.tokenType});
 
+  static const _requestTimeout = Duration(seconds: 8);
+
   final String? token;
   final String? tokenType;
 
@@ -28,7 +30,7 @@ class ApiClient {
             headers: _headers,
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_requestTimeout);
       return _decode(response, uri);
     } on SocketException catch (error) {
       throw ApiException(
@@ -56,7 +58,7 @@ class ApiClient {
             uri,
             headers: _headers,
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_requestTimeout);
       return _decode(response, uri);
     } on SocketException catch (error) {
       throw ApiException(
@@ -86,7 +88,7 @@ class ApiClient {
             headers: _headers,
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_requestTimeout);
       return _decode(response, uri);
     } on SocketException catch (error) {
       throw ApiException(
@@ -116,7 +118,37 @@ class ApiClient {
             headers: _headers,
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_requestTimeout);
+      return _decode(response, uri);
+    } on SocketException catch (error) {
+      throw ApiException(
+        'No se pudo conectar con ${uri.host}:${uri.port}. Verifica que Laravel esté activo y accesible desde esta app. ${error.message}',
+        0,
+      );
+    } on TimeoutException {
+      throw ApiException(
+        'La solicitud a $uri tardó demasiado. Revisa la conectividad entre Flutter y Laravel.',
+        0,
+      );
+    } on FormatException {
+      throw ApiException(
+        'La API respondió con un formato inválido en $uri.',
+        0,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> delete(
+      String path, Map<String, dynamic> body) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}$path');
+    try {
+      final response = await http
+          .delete(
+            uri,
+            headers: _headers,
+            body: jsonEncode(body),
+          )
+          .timeout(_requestTimeout);
       return _decode(response, uri);
     } on SocketException catch (error) {
       throw ApiException(
@@ -153,7 +185,7 @@ class ApiClient {
         ..files.add(await http.MultipartFile.fromPath(fieldName, filePath));
 
       final streamed =
-          await request.send().timeout(const Duration(seconds: 25));
+          await request.send().timeout(const Duration(seconds: 15));
       final response = await http.Response.fromStream(streamed);
       return _decode(response, uri);
     } on SocketException catch (error) {
@@ -222,4 +254,7 @@ class ApiException implements Exception {
 
   final String message;
   final int statusCode;
+
+  @override
+  String toString() => message;
 }

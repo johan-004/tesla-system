@@ -19,6 +19,8 @@ class ProductoResource extends JsonResource
             'iva_porcentaje' => $this->iva_porcentaje,
             'stock' => $this->stock,
             'unidad_medida' => $this->unidad_medida,
+            'categoria_id' => $this->categoria_id,
+            'categoria_nombre' => $this->categoria?->nombre ?? 'Sin categoría',
             'activo' => (bool) $this->activo,
             'created_at' => optional($this->created_at)->toDateTimeString(),
         ];

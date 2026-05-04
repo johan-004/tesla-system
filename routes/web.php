@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\CotizacionController;
+use App\Http\Controllers\WebDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -10,9 +11,9 @@ Route::get('/', function () {
 });
 
 // Dashboard protegido por login y verificación
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [WebDashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 // Grupo de rutas que requieren autenticación
 Route::middleware('auth')->group(function () {

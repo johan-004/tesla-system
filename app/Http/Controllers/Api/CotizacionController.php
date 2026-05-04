@@ -9,6 +9,9 @@ use App\Http\Requests\Api\Cotizacion\UpdateCotizacionRequest;
 use App\Http\Resources\CotizacionResource;
 use App\Models\Cotizacion;
 use App\Models\CotizacionDetalle;
+use App\Models\Producto;
+use App\Models\Servicio;
+use App\Services\Alerts\AdminBusinessPushNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -68,7 +71,10 @@ class CotizacionController extends Controller
         ]);
     }
 
-    public function store(StoreCotizacionRequest $request): JsonResponse
+    public function store(
+        StoreCotizacionRequest $request,
+        AdminBusinessPushNotifier $adminBusinessPushNotifier
+    ): JsonResponse
     {
         $actor = $request->user();
 
@@ -116,8 +122,11 @@ class CotizacionController extends Controller
             return $cotizacion;
         });
 
-        // Punto de integración para futura push notification a administradora.
         event(new CotizacionCreada($cotizacion, $actor?->id));
+        $adminBusinessPushNotifier->notifyCotizacionCreatedBySeller(
+            $cotizacion,
+            $actor
+        );
 
         return response()->json([
             'message' => 'Cotización creada correctamente.',
@@ -332,10 +341,14 @@ class CotizacionController extends Controller
         $cotizacion->detalles()->delete();
 
         foreach ($detalles as $detalle) {
+            [$tipoItem, $servicioId, $productoId, $codigo] = $this->resolveDetalleReferences($detalle);
+
             CotizacionDetalle::query()->create([
                 'cotizacion_id' => $cotizacion->id,
-                'servicio_id' => $detalle['servicio_id'] ?? null,
-                'categoria' => 'servicio',
+                'servicio_id' => $servicioId,
+                'producto_id' => $productoId,
+                'categoria' => $tipoItem,
+                'codigo' => $codigo,
                 'descripcion' => trim((string) ($detalle['descripcion'] ?? '')),
                 'unidad' => trim((string) ($detalle['unidad'] ?? '')),
                 'cantidad' => (float) ($detalle['cantidad'] ?? 0),
@@ -380,5 +393,45 @@ class CotizacionController extends Controller
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function resolveDetalleReferences(array $detalle): array
+    {
+        $servicioId = isset($detalle['servicio_id']) ? (int) $detalle['servicio_id'] : null;
+        $productoId = isset($detalle['producto_id']) ? (int) $detalle['producto_id'] : null;
+        $tipoItem = trim((string) ($detalle['tipo_item'] ?? ''));
+
+        if ($tipoItem === '') {
+            $tipoItem = $productoId ? 'producto' : 'servicio';
+        }
+
+        if ($tipoItem === 'producto' && $productoId) {
+            $producto = Producto::query()->find($productoId);
+
+            return [
+                'producto',
+                null,
+                $productoId,
+                trim((string) ($detalle['codigo'] ?? $producto?->codigo ?? '')),
+            ];
+        }
+
+        if ($servicioId) {
+            $servicio = Servicio::query()->find($servicioId);
+
+            return [
+                'servicio',
+                $servicioId,
+                null,
+                trim((string) ($detalle['codigo'] ?? $servicio?->codigo ?? '')),
+            ];
+        }
+
+        return [
+            $tipoItem === 'producto' ? 'producto' : 'servicio',
+            null,
+            null,
+            trim((string) ($detalle['codigo'] ?? '')),
+        ];
     }
 }

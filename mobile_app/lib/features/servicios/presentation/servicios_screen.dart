@@ -188,7 +188,7 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(isDesktop ? 32 : 30),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF14532D), Color(0xFF166534)],
+          colors: [Color(0xFF082F49), Color(0xFF0F172A), Color(0xFF155E75)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

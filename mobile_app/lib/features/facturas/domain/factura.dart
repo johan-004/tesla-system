@@ -61,7 +61,12 @@ class Factura {
   final String? createdAt;
   final String? updatedAt;
 
-  bool get isBorrador => estado.trim().toLowerCase() == 'borrador';
+  bool get isBorrador {
+    final value = estado.trim().toLowerCase();
+    return value == 'pendiente' || value == 'borrador';
+  }
+
+  bool get isPendiente => isBorrador;
   bool get isEmitida => estado.trim().toLowerCase() == 'emitida';
   bool get isAnulada => estado.trim().toLowerCase() == 'anulada';
 
@@ -86,7 +91,7 @@ class Factura {
       ivaTotal:
           json['iva_total']?.toString() ?? json['impuestos']?.toString() ?? '0',
       total: json['total']?.toString() ?? '0',
-      estado: json['estado']?.toString() ?? 'borrador',
+      estado: json['estado']?.toString() ?? 'pendiente',
       items: (json['items'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(FacturaItem.fromJson)

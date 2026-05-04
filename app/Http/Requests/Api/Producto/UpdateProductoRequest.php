@@ -25,6 +25,7 @@ class UpdateProductoRequest extends FormRequest
             'iva_porcentaje' => ['nullable', 'numeric', 'min:0'],
             'stock' => ['sometimes', 'required', 'integer', 'min:0'],
             'unidad_medida' => ['sometimes', 'required', 'string', 'max:50'],
+            'categoria_id' => ['nullable', 'integer', 'exists:producto_categorias,id'],
             'activo' => ['nullable', 'boolean'],
         ];
     }

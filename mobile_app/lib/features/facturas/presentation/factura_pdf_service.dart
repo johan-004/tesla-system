@@ -53,20 +53,19 @@ class FacturaPdfService {
     final totalWords = '${_numberToSpanishWords(totalNumber)} pesos mcte';
     final totalText = PriceFormatter.formatCopWhole(factura.total);
 
-    final firmaNombre =
-        (factura.firmaNombre ?? 'María Alejandra Flórez Ocampo.').trim().isEmpty
-            ? 'María Alejandra Flórez Ocampo.'
-            : factura.firmaNombre!.trim();
+    final firmaNombreRaw =
+        (factura.firmaNombre ?? 'María Alejandra Flórez Ocampo.').trim();
+    final firmaNombre = firmaNombreRaw.isEmpty
+        ? 'María Alejandra Flórez Ocampo.'
+        : firmaNombreRaw;
+    final firmaCargoRaw = (factura.firmaCargo ?? 'Representante Legal').trim();
     final firmaCargo =
-        (factura.firmaCargo ?? 'Representante Legal').trim().isEmpty
-            ? 'Representante Legal'
-            : factura.firmaCargo!.trim();
-    final firmaEmpresa =
-        (factura.firmaEmpresa ?? 'Proyecciones eléctricas Tesla.')
-                .trim()
-                .isEmpty
-            ? 'Proyecciones eléctricas Tesla.'
-            : factura.firmaEmpresa!.trim();
+        firmaCargoRaw.isEmpty ? 'Representante Legal' : firmaCargoRaw;
+    final firmaEmpresaRaw =
+        (factura.firmaEmpresa ?? 'Proyecciones eléctricas Tesla.').trim();
+    final firmaEmpresa = firmaEmpresaRaw.isEmpty
+        ? 'Proyecciones eléctricas Tesla.'
+        : firmaEmpresaRaw;
 
     document.addPage(
       pw.Page(
@@ -334,12 +333,14 @@ class FacturaPdfService {
     required _FacturaLayout layout,
     double? cellHeightOverride,
   }) {
+    final cellHeight = cellHeightOverride ?? layout.tableCellHeight;
     final mainRows = rows
         .asMap()
         .entries
         .map(
           (entry) => <String>[
             entry.value.descripcion.trim().isEmpty ? '' : '${entry.key + 1}',
+            entry.value.codigo.trim(),
             _normalizeDescripcion(entry.value.descripcion, layout.maxDescChars),
             entry.value.unidad,
             _formatCantidadEntera(entry.value.cantidad),
@@ -353,50 +354,105 @@ class FacturaPdfService {
         )
         .toList();
 
-    final table = pw.TableHelper.fromTextArray(
-      border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.8),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.grey400),
-      headers: const [
-        'Ítem',
-        'Descripción',
-        'Unid.',
-        'Cant.',
-        'V. Unit',
-        'Total'
+    final border = pw.TableBorder.all(color: PdfColors.grey600, width: 0.8);
+    const widths = <int, pw.TableColumnWidth>{
+      0: pw.FixedColumnWidth(32),
+      1: pw.FixedColumnWidth(62),
+      2: pw.FlexColumnWidth(3.8),
+      3: pw.FixedColumnWidth(46),
+      4: pw.FixedColumnWidth(46),
+      5: pw.FixedColumnWidth(68),
+      6: pw.FixedColumnWidth(80),
+    };
+
+    final headerStyle = pw.TextStyle(
+      fontWeight: pw.FontWeight.bold,
+      fontSize: layout.tableHeaderFontSize,
+    );
+    final cellStyle = pw.TextStyle(
+      fontSize: layout.tableCellFontSize,
+      lineSpacing: 1.0,
+    );
+
+    final table = pw.Table(
+      border: border,
+      columnWidths: widths,
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey400),
+          children: [
+            _tableCell('Ítem',
+                style: headerStyle,
+                height: layout.tableHeaderHeight,
+                align: pw.Alignment.center),
+            _tableCell('Código',
+                style: headerStyle,
+                height: layout.tableHeaderHeight,
+                align: pw.Alignment.center),
+            _tableCell('Descripción',
+                style: headerStyle,
+                height: layout.tableHeaderHeight,
+                align: pw.Alignment.center),
+            _tableCell('Unid.',
+                style: headerStyle,
+                height: layout.tableHeaderHeight,
+                align: pw.Alignment.center),
+            _tableCell('Cant.',
+                style: headerStyle,
+                height: layout.tableHeaderHeight,
+                align: pw.Alignment.center),
+            _tableCell('V. Unit',
+                style: headerStyle,
+                height: layout.tableHeaderHeight,
+                align: pw.Alignment.centerRight),
+            _tableCell('Total',
+                style: headerStyle,
+                height: layout.tableHeaderHeight,
+                align: pw.Alignment.centerRight),
+          ],
+        ),
+        ...mainRows.map(
+          (row) => pw.TableRow(
+            children: [
+              _tableCell(row[0],
+                  style: cellStyle,
+                  height: cellHeight,
+                  align: pw.Alignment.center),
+              _tableCell(row[1],
+                  style: cellStyle,
+                  height: cellHeight,
+                  align: pw.Alignment.center),
+              _tableCell(row[2],
+                  style: cellStyle,
+                  height: cellHeight,
+                  align: pw.Alignment.centerLeft),
+              _tableCell(row[3],
+                  style: cellStyle,
+                  height: cellHeight,
+                  align: pw.Alignment.center),
+              _tableCell(row[4],
+                  style: cellStyle,
+                  height: cellHeight,
+                  align: pw.Alignment.center),
+              _tableCell(row[5],
+                  style: cellStyle,
+                  height: cellHeight,
+                  align: pw.Alignment.centerRight),
+              _tableCell(row[6],
+                  style: cellStyle,
+                  height: cellHeight,
+                  align: pw.Alignment.centerRight),
+            ],
+          ),
+        ),
       ],
-      data: mainRows,
-      headerHeight: layout.tableHeaderHeight,
-      cellHeight: cellHeightOverride ?? layout.tableCellHeight,
-      headerStyle: pw.TextStyle(
-        fontWeight: pw.FontWeight.bold,
-        fontSize: layout.tableHeaderFontSize,
-      ),
-      cellStyle: pw.TextStyle(
-        fontSize: layout.tableCellFontSize,
-        lineSpacing: 1.05,
-      ),
-      cellAlignments: {
-        0: pw.Alignment.center,
-        2: pw.Alignment.center,
-        3: pw.Alignment.center,
-        4: pw.Alignment.centerRight,
-        5: pw.Alignment.centerRight,
-      },
-      columnWidths: {
-        0: const pw.FixedColumnWidth(32),
-        1: const pw.FlexColumnWidth(4.2),
-        2: const pw.FixedColumnWidth(50),
-        3: const pw.FixedColumnWidth(50),
-        4: const pw.FixedColumnWidth(72),
-        5: const pw.FixedColumnWidth(84),
-      },
     );
 
     final totalRow = pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.8),
+      border: border,
       columnWidths: const {
         0: pw.FlexColumnWidth(),
-        1: pw.FixedColumnWidth(84),
+        1: pw.FixedColumnWidth(80),
       },
       children: [
         pw.TableRow(
@@ -436,6 +492,24 @@ class FacturaPdfService {
     );
   }
 
+  static pw.Widget _tableCell(
+    String value, {
+    required pw.TextStyle style,
+    required double height,
+    required pw.Alignment align,
+  }) {
+    return pw.Container(
+      height: height,
+      alignment: align,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      child: pw.Text(
+        value,
+        style: style,
+        maxLines: 1,
+      ),
+    );
+  }
+
   static List<FacturaItem> _resolveRows(Factura factura) {
     final rows = <FacturaItem>[...factura.items];
     while (rows.length < 5) {
@@ -443,7 +517,10 @@ class FacturaPdfService {
         FacturaItem(
           id: -rows.length,
           facturaId: factura.id,
+          tipoItem: 'servicio',
           productoId: null,
+          servicioId: null,
+          codigo: '',
           orden: rows.length + 1,
           descripcion: '',
           unidad: '',

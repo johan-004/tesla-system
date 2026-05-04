@@ -2,7 +2,10 @@ class FacturaItem {
   FacturaItem({
     required this.id,
     required this.facturaId,
+    required this.tipoItem,
     required this.productoId,
+    required this.servicioId,
+    required this.codigo,
     required this.orden,
     required this.descripcion,
     required this.unidad,
@@ -16,7 +19,10 @@ class FacturaItem {
 
   final int id;
   final int facturaId;
+  final String tipoItem;
   final int? productoId;
+  final int? servicioId;
+  final String codigo;
   final int orden;
   final String descripcion;
   final String unidad;
@@ -31,7 +37,10 @@ class FacturaItem {
     return FacturaItem(
       id: _parseInt(json['id']),
       facturaId: _parseInt(json['factura_id']),
+      tipoItem: json['tipo_item']?.toString() ?? 'servicio',
       productoId: _parseNullableInt(json['producto_id']),
+      servicioId: _parseNullableInt(json['servicio_id']),
+      codigo: json['codigo']?.toString() ?? '',
       orden: _parseInt(json['orden']),
       descripcion: json['descripcion']?.toString() ?? '',
       unidad: json['unidad']?.toString() ?? '',

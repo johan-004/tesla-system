@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_controller.dart';
@@ -16,6 +17,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController =
       TextEditingController(text: 'admin@tesla-system.test');
   final _passwordController = TextEditingController(text: 'password123');
+  final _emailFocusNode = FocusNode(debugLabel: 'login-email');
+  final _passwordFocusNode = FocusNode(debugLabel: 'login-password');
+  bool _obscureLoginPassword = true;
   bool _loading = false;
   String? _error;
 
@@ -23,91 +27,148 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF7F4EA), Color(0xFFDDEEE8)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              if (!_loading) {
+                _submit();
+              }
+              return null;
+            },
           ),
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
-              elevation: 8,
-              margin: const EdgeInsets.all(24),
-              child: Padding(
+        },
+        child: Scaffold(
+          body: SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFF7F4EA), Color(0xFFDDEEE8)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ClipOval(
-                      child: SizedBox(
-                        width: 142,
-                        height: 142,
-                        child: Image.asset(
-                          'assets/images/icono_de_login.png',
-                          fit: BoxFit.cover,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - 48,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Card(
+                        elevation: 8,
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ClipOval(
+                                child: SizedBox(
+                                  width: 142,
+                                  height: 142,
+                                  child: Image.asset(
+                                    'assets/images/icono_de_login.png',
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text('Ingreso',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall),
+                              const SizedBox(height: 24),
+                              TextField(
+                                controller: _emailController,
+                                focusNode: _emailFocusNode,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'Correo',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _passwordController,
+                                focusNode: _passwordFocusNode,
+                                obscureText: _obscureLoginPassword,
+                                textInputAction: TextInputAction.done,
+                                decoration: InputDecoration(
+                                  labelText: 'Clave',
+                                  border: const OutlineInputBorder(),
+                                  suffixIcon: IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscureLoginPassword =
+                                            !_obscureLoginPassword;
+                                      });
+                                    },
+                                    icon: Icon(
+                                      _obscureLoginPassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                    tooltip: _obscureLoginPassword
+                                        ? 'Mostrar contraseña'
+                                        : 'Ocultar contraseña',
+                                  ),
+                                ),
+                              ),
+                              if (_error != null) ...[
+                                const SizedBox(height: 16),
+                                Text(_error!,
+                                    style: const TextStyle(color: Colors.red)),
+                              ],
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  onPressed: _loading ? null : _submit,
+                                  child: _loading
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Text('Entrar'),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextButton(
+                                onPressed: _openRecoveryOptionsDialog,
+                                child: const Text('Olvidé mi contraseña'),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Text('Ingreso',
-                        style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Correo',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Clave',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                    ],
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _loading ? null : _submit,
-                        child: _loading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Entrar'),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: _openRecoveryOptionsDialog,
-                      child: const Text('Olvidé mi contraseña'),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
+      ),
+    ),
       ),
     );
   }
@@ -294,20 +355,30 @@ class _LoginScreenState extends State<LoginScreen> {
     String? localError;
     bool requesting = false;
     bool resetting = false;
+    bool codeRequested = false;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (_, setStateDialog) {
+            void safeSetStateDialog(VoidCallback fn) {
+              if (!dialogContext.mounted) {
+                return;
+              }
+              setStateDialog(fn);
+            }
+
             Future<void> requestCode() async {
               final phone = phoneController.text.trim();
               if (phone.isEmpty) {
-                setStateDialog(() => localError = 'Ingresa tu teléfono.');
+                safeSetStateDialog(() => localError = 'Ingresa tu teléfono.');
                 return;
               }
 
-              setStateDialog(() {
+              safeSetStateDialog(() {
                 requesting = true;
                 localError = null;
               });
@@ -328,13 +399,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 );
+                safeSetStateDialog(() {
+                  codeRequested = true;
+                });
               } on ApiException catch (error) {
-                setStateDialog(() => localError = error.message);
+                safeSetStateDialog(() => localError = error.message);
               } catch (error) {
-                setStateDialog(() =>
+                safeSetStateDialog(() =>
                     localError = 'No fue posible enviar el código: $error');
               } finally {
-                setStateDialog(() => requesting = false);
+                safeSetStateDialog(() => requesting = false);
               }
             }
 
@@ -348,18 +422,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   code.isEmpty ||
                   password.isEmpty ||
                   confirmation.isEmpty) {
-                setStateDialog(() =>
+                safeSetStateDialog(() =>
                     localError = 'Completa todos los campos para restablecer.');
                 return;
               }
 
               if (password != confirmation) {
-                setStateDialog(
+                safeSetStateDialog(
                     () => localError = 'La confirmación no coincide.');
                 return;
               }
 
-              setStateDialog(() {
+              safeSetStateDialog(() {
                 resetting = true;
                 localError = null;
               });
@@ -385,12 +459,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 );
               } on ApiException catch (error) {
-                setStateDialog(() => localError = error.message);
+                safeSetStateDialog(() => localError = error.message);
               } catch (error) {
-                setStateDialog(() =>
+                safeSetStateDialog(() =>
                     localError = 'No fue posible restablecer por SMS: $error');
               } finally {
-                setStateDialog(() => resetting = false);
+                safeSetStateDialog(() => resetting = false);
               }
             }
 
@@ -427,33 +501,74 @@ class _LoginScreenState extends State<LoginScreen> {
                             : const Text('Enviar código SMS'),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: codeController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Código de 6 dígitos',
-                        border: OutlineInputBorder(),
+                    if (codeRequested) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: codeController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Código de 6 dígitos',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: newPasswordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Nueva contraseña',
-                        border: OutlineInputBorder(),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: newPasswordController,
+                        obscureText: obscureNewPassword,
+                        decoration: InputDecoration(
+                          labelText: 'Nueva contraseña',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setStateDialog(() {
+                                obscureNewPassword = !obscureNewPassword;
+                              });
+                            },
+                            icon: Icon(
+                              obscureNewPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: obscureNewPassword
+                                ? 'Mostrar contraseña'
+                                : 'Ocultar contraseña',
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: confirmPasswordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Confirmar contraseña',
-                        border: OutlineInputBorder(),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: confirmPasswordController,
+                        obscureText: obscureConfirmPassword,
+                        decoration: InputDecoration(
+                          labelText: 'Confirmar contraseña',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setStateDialog(() {
+                                obscureConfirmPassword =
+                                    !obscureConfirmPassword;
+                              });
+                            },
+                            icon: Icon(
+                              obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: obscureConfirmPassword
+                                ? 'Mostrar contraseña'
+                                : 'Ocultar contraseña',
+                          ),
+                        ),
                       ),
-                    ),
+                    ] else ...[
+                      const SizedBox(height: 10),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Primero solicita el código SMS para habilitar el cambio de contraseña.',
+                        ),
+                      ),
+                    ],
                     if (localError != null) ...[
                       const SizedBox(height: 8),
                       Align(
@@ -475,7 +590,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: const Text('Cerrar'),
                 ),
                 FilledButton(
-                  onPressed: requesting || resetting ? null : resetBySms,
+                  onPressed: requesting || resetting || !codeRequested
+                      ? null
+                      : resetBySms,
                   child: resetting
                       ? const SizedBox(
                           width: 16,

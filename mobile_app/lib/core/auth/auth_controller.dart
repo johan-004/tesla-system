@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../api/api_client.dart';
+import '../notifications/push_notification_service.dart';
 import '../storage/token_storage.dart';
 
 class AuthController extends ChangeNotifier with WidgetsBindingObserver {
@@ -93,12 +94,16 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
         userRole: userRole ?? '',
         userPermissions: userPermissions,
       );
+      await PushNotificationService.instance.syncToken(
+        authToken: token!,
+        tokenType: tokenType!,
+      );
       _startInactivityTracking();
     } on ApiException catch (error) {
       if (error.statusCode == 401 || error.statusCode == 403) {
         await _clearLocalSession(notify: false);
       } else {
-        rethrow;
+        await _clearLocalSession(notify: false);
       }
     } catch (_) {
       await _clearLocalSession(notify: false);
@@ -151,6 +156,10 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
       userRole: userRole ?? '',
       userPermissions: userPermissions,
     );
+    await PushNotificationService.instance.syncToken(
+      authToken: token!,
+      tokenType: tokenType!,
+    );
 
     _startInactivityTracking();
     notifyListeners();
@@ -173,6 +182,17 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
     _stopInactivityTracking();
 
     if (token != null) {
+      final activeToken = token!;
+      final activeTokenType = tokenType ?? 'Bearer';
+      try {
+        await PushNotificationService.instance.detachToken(
+          authToken: activeToken,
+          tokenType: activeTokenType,
+        );
+      } catch (_) {
+        // No bloquear logout.
+      }
+
       try {
         await ApiClient(token: token, tokenType: tokenType)
             .post('/auth/logout', {});

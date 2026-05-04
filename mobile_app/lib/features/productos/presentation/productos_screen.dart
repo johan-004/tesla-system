@@ -10,6 +10,7 @@ import '../data/paginated_productos_response.dart';
 import '../data/productos_query.dart';
 import '../data/productos_repository.dart';
 import '../domain/producto.dart';
+import '../domain/producto_categoria.dart';
 import 'productos_controller.dart';
 import 'productos_state.dart';
 import 'producto_form_screen.dart';
@@ -45,6 +46,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
   static const _amber800 = Color(0xFF92400E);
 
   late final ProductosController _controller;
+  List<ProductoCategoria> _categorias = const [];
 
   ProductosRepository get _repository => _controller.repository;
   TextEditingController get _searchController => _controller.searchController;
@@ -70,6 +72,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
       ),
       pollingInterval: _pollingInterval,
     )..initialize();
+    unawaited(_loadCategorias());
   }
 
   @override
@@ -191,7 +194,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF134E4A), Color(0xFF0F766E)],
+          colors: [Color(0xFF082F49), Color(0xFF0F172A), Color(0xFF155E75)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -234,7 +237,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Consulta, filtra y administra el catalogo con una interfaz movil mas pulida y coherente con el sistema.',
+            'Consulta, filtra y administra el catalogo de productos por categoria, estado y stock disponible.',
             style: TextStyle(
               color: Color(0xFFE2E8F0),
               height: 1.45,
@@ -243,58 +246,29 @@ class _ProductosScreenState extends State<ProductosScreen> {
           const SizedBox(height: 18),
           Row(
             children: [
-              Expanded(
-                child: _canCreateProductos
-                    ? FilledButton.icon(
-                        onPressed: _openCreateForm,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: _slate900,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text(
-                          'Nuevo producto',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      )
-                    : _buildReadonlyAccessCard(),
-              ),
+              if (_canCreateProductos)
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _openCreateForm,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: _slate900,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text(
+                      'Nuevo producto',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                )
+              else
+                Expanded(child: _buildReadonlyAccessCard()),
               const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(18),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Pagina',
-                      style: TextStyle(
-                        color: Color(0xFFBFDBFE),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${response.currentPage}/${response.lastPage}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildHeroCounter('${response.currentPage}/${response.lastPage}'),
             ],
           ),
           const SizedBox(height: 16),
@@ -304,6 +278,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 child: _buildHeroMetric(
                   label: 'Visibles',
                   value: '${response.items.length}',
+                  icon: Icons.visibility_outlined,
                 ),
               ),
               const SizedBox(width: 10),
@@ -311,13 +286,26 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 child: _buildHeroMetric(
                   label: 'Total',
                   value: '${response.total}',
+                  icon: Icons.inventory_2_outlined,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: _buildHeroMetric(
-                  label: 'Orden',
-                  value: _formatOrder(_query.orden),
+                  label: 'Categoria',
+                  value: _query.categoriaId == null
+                      ? 'Todas'
+                      : _categorias
+                          .firstWhere(
+                            (c) => c.id == _query.categoriaId,
+                            orElse: () => ProductoCategoria(
+                              id: 0,
+                              nombre: 'Todas',
+                              activo: true,
+                            ),
+                          )
+                          .nombre,
+                  icon: Icons.category_outlined,
                 ),
               ),
             ],
@@ -330,30 +318,71 @@ class _ProductosScreenState extends State<ProductosScreen> {
   Widget _buildHeroMetric({
     required String label,
     required String value,
+    required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFFE2E8F0)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFFBFDBFE),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroCounter(String pageLabel) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
+          const Text(
+            'Pagina',
+            style: TextStyle(
               color: Color(0xFFBFDBFE),
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            pageLabel,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
@@ -382,39 +411,18 @@ class _ProductosScreenState extends State<ProductosScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.tune_rounded,
-                  color: Color(0xFF047857),
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Buscar y filtrar',
-                  style: TextStyle(
-                    color: _slate900,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
+          const Text(
+            'Buscar y filtrar',
+            style: TextStyle(
+              color: _slate900,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Busca por codigo o nombre y combina estado, orden y direccion con controles tactiles mas claros.',
-            style: TextStyle(
-              color: _slate500,
-              height: 1.4,
-            ),
+            'Busca por codigo o nombre y filtra por categoria, estado, orden y direccion.',
+            style: TextStyle(color: _slate500, height: 1.4),
           ),
           const SizedBox(height: 18),
           TextField(
@@ -463,6 +471,38 @@ class _ProductosScreenState extends State<ProductosScreen> {
             _buildSuggestionsPanel(),
           ],
           const SizedBox(height: 18),
+          _buildCategoryDropdown(),
+          const SizedBox(height: 10),
+          _buildDropdown(
+            label: 'Ordenar por',
+            value: _query.orden,
+            items: const [
+              DropdownMenuItem(value: 'codigo', child: Text('Código')),
+              DropdownMenuItem(value: 'nombre', child: Text('Nombre')),
+              DropdownMenuItem(value: 'stock', child: Text('Stock')),
+              DropdownMenuItem(value: 'precio_venta', child: Text('Precio')),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                unawaited(_controller.setOrden(value));
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          _buildDropdown(
+            label: 'Dirección',
+            value: _query.direccion,
+            items: const [
+              DropdownMenuItem(value: 'asc', child: Text('Ascendente')),
+              DropdownMenuItem(value: 'desc', child: Text('Descendente')),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                unawaited(_controller.setDireccion(value));
+              }
+            },
+          ),
+          const SizedBox(height: 18),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -496,45 +536,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Ordenar por',
-                  value: _query.orden,
-                  items: const [
-                    DropdownMenuItem(value: 'codigo', child: Text('Codigo')),
-                    DropdownMenuItem(value: 'nombre', child: Text('Nombre')),
-                    DropdownMenuItem(value: 'stock', child: Text('Stock')),
-                    DropdownMenuItem(
-                        value: 'precio_venta', child: Text('Precio')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      unawaited(_controller.setOrden(value));
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Direccion',
-                  value: _query.direccion,
-                  items: const [
-                    DropdownMenuItem(value: 'asc', child: Text('Ascendente')),
-                    DropdownMenuItem(value: 'desc', child: Text('Descendente')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      unawaited(_controller.setDireccion(value));
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -546,7 +547,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(32),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF134E4A), Color(0xFF0F766E)],
+          colors: [Color(0xFF082F49), Color(0xFF0F172A), Color(0xFF155E75)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -742,7 +743,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
                     ),
                     SizedBox(height: 6),
                     Text(
-                      'Filtra por estado, orden y direccion sin perder el contexto de la tabla.',
+                      'Filtra por estado, categoria, orden y direccion sin perder el contexto de la tabla.',
                       style: TextStyle(
                         color: _slate500,
                         height: 1.4,
@@ -813,6 +814,11 @@ class _ProductosScreenState extends State<ProductosScreen> {
                     ],
                   ],
                 ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: _buildCategoryDropdown(),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -981,7 +987,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Stock: ${producto.stock} ${producto.unidadMedida}',
+                    'Categoría: ${producto.categoriaNombre} · Stock: ${producto.stock} ${producto.unidadMedida}',
                     style: const TextStyle(color: _slate500),
                   ),
                 ],
@@ -1015,7 +1021,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
 
   Widget _buildProductCard(Producto producto) {
     final stockBajo = producto.stock <= 5;
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1040,23 +1045,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _slate100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        producto.codigo,
-                        style: const TextStyle(
-                          color: _slate700,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                    _buildCodePill(producto.codigo),
                     const SizedBox(height: 12),
                     Text(
                       producto.nombre,
@@ -1069,7 +1058,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Unidad: ${producto.unidadMedida}',
+                      'Categoria: ${producto.categoriaNombre}',
                       style: const TextStyle(
                         color: _slate500,
                         fontSize: 13,
@@ -1080,25 +1069,12 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '\$${PriceFormatter.format(producto.precioVenta)}',
-                    style: const TextStyle(
-                      color: _slate900,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildBadge(
-                    label: producto.activo ? 'Activo' : 'Inactivo',
-                    background: producto.activo ? _emerald100 : _slate200,
-                    foreground:
-                        producto.activo ? const Color(0xFF047857) : _slate700,
-                  ),
-                ],
+              _buildBadge(
+                label: producto.activo ? 'Activo' : 'Inactivo',
+                background: producto.activo ? _emerald100 : _rose100,
+                foreground: producto.activo
+                    ? const Color(0xFF047857)
+                    : const Color(0xFFBE123C),
               ),
             ],
           ),
@@ -1126,6 +1102,11 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          _buildInfoBlock(
+            label: 'Precio venta',
+            value: '\$${PriceFormatter.format(producto.precioVenta)}',
           ),
           const SizedBox(height: 18),
           Row(
@@ -1343,7 +1324,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'ID ${producto.id}',
+                  'ID ${producto.id} · ${producto.categoriaNombre}',
                   style: const TextStyle(
                     color: _slate500,
                     fontSize: 12,
@@ -1658,11 +1639,49 @@ class _ProductosScreenState extends State<ProductosScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: value,
       items: items,
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
+        filled: true,
+        fillColor: _slate100,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: _slate300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: _slate300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: _emerald500, width: 1.4),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryDropdown() {
+    return DropdownButtonFormField<int?>(
+      isExpanded: true,
+      initialValue: _query.categoriaId,
+      items: [
+        const DropdownMenuItem<int?>(
+          value: null,
+          child: Text('Todas las categorias'),
+        ),
+        ..._categorias.map(
+          (categoria) => DropdownMenuItem<int?>(
+            value: categoria.id,
+            child: Text(categoria.nombre),
+          ),
+        ),
+      ],
+      onChanged: (value) => unawaited(_controller.setCategoriaFilter(value)),
+      decoration: InputDecoration(
+        labelText: 'Categoria',
         filled: true,
         fillColor: _slate100,
         border: OutlineInputBorder(
@@ -1845,6 +1864,23 @@ class _ProductosScreenState extends State<ProductosScreen> {
     );
   }
 
+  Widget _buildCodePill(String codigo) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: _slate100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        codigo,
+        style: const TextStyle(
+          color: _slate700,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   void _onSearchChanged(String value) {
     _controller.onSearchChanged(value);
   }
@@ -1868,17 +1904,35 @@ class _ProductosScreenState extends State<ProductosScreen> {
     await _controller.refresh(query: query, silent: silent);
   }
 
+  Future<void> _loadCategorias() async {
+    try {
+      final categorias = await _repository.fetchCategorias();
+      if (!mounted) return;
+      setState(() {
+        _categorias = categorias;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _categorias = const [];
+      });
+    }
+  }
+
   Future<void> _openCreateForm() async {
     if (!_canCreateProductos) {
       _showForbiddenMessage();
       return;
     }
 
-    final created = await Navigator.of(context).push<Producto>(
-      MaterialPageRoute(
-        builder: (_) => ProductoFormScreen(repository: _repository),
-      ),
-    );
+    _controller.pausePolling();
+    final created = await Navigator.of(context)
+        .push<Producto>(
+          MaterialPageRoute(
+            builder: (_) => ProductoFormScreen(repository: _repository),
+          ),
+        )
+        .whenComplete(_controller.resumePolling);
 
     if (created != null) {
       await _controller.refreshAfterMutation(
@@ -1894,14 +1948,17 @@ class _ProductosScreenState extends State<ProductosScreen> {
       return;
     }
 
-    final updated = await Navigator.of(context).push<Producto>(
-      MaterialPageRoute(
-        builder: (_) => ProductoFormScreen(
-          repository: _repository,
-          producto: producto,
-        ),
-      ),
-    );
+    _controller.pausePolling();
+    final updated = await Navigator.of(context)
+        .push<Producto>(
+          MaterialPageRoute(
+            builder: (_) => ProductoFormScreen(
+              repository: _repository,
+              producto: producto,
+            ),
+          ),
+        )
+        .whenComplete(_controller.resumePolling);
 
     if (updated != null) {
       await _controller.refreshAfterMutation(

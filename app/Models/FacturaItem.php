@@ -12,6 +12,9 @@ class FacturaItem extends Model
     protected $fillable = [
         'factura_id',
         'producto_id',
+        'servicio_id',
+        'tipo_item',
+        'codigo',
         'orden',
         'descripcion',
         'unidad',
@@ -43,5 +46,10 @@ class FacturaItem extends Model
     public function producto()
     {
         return $this->belongsTo(Producto::class);
+    }
+
+    public function servicio()
+    {
+        return $this->belongsTo(Servicio::class);
     }
 }

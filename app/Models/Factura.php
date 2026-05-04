@@ -10,14 +10,19 @@ class Factura extends Model
 {
     use HasFactory;
 
-    public const ESTADO_BORRADOR = 'borrador';
+    public const ESTADO_PENDIENTE = 'pendiente';
+    public const ESTADO_BORRADOR = 'borrador'; // Legacy
     public const ESTADO_EMITIDA = 'emitida';
     public const ESTADO_ANULADA = 'anulada';
 
     public const ESTADOS = [
-        self::ESTADO_BORRADOR,
+        self::ESTADO_PENDIENTE,
         self::ESTADO_EMITIDA,
         self::ESTADO_ANULADA,
+    ];
+
+    public const ESTADO_ALIASES = [
+        self::ESTADO_BORRADOR => self::ESTADO_PENDIENTE,
     ];
 
     protected $fillable = [
@@ -92,7 +97,20 @@ class Factura extends Model
 
     public function scopeVisibleFlow(Builder $query): Builder
     {
-        return $query->whereIn('estado', self::ESTADOS);
+        return $query->whereIn('estado', [
+            self::ESTADO_PENDIENTE,
+            self::ESTADO_BORRADOR, // Legacy
+            self::ESTADO_EMITIDA,
+            self::ESTADO_ANULADA,
+        ]);
+    }
+
+    public function scopePendiente(Builder $query): Builder
+    {
+        return $query->whereIn('estado', [
+            self::ESTADO_PENDIENTE,
+            self::ESTADO_BORRADOR, // Legacy
+        ]);
     }
 
     public static function normalizeEstado(?string $estado): ?string
@@ -103,22 +121,26 @@ class Factura extends Model
 
         $normalized = mb_strtolower(trim($estado));
 
+        if (isset(self::ESTADO_ALIASES[$normalized])) {
+            return self::ESTADO_ALIASES[$normalized];
+        }
+
         return in_array($normalized, self::ESTADOS, true) ? $normalized : null;
     }
 
     public function canBeUpdated(): bool
     {
-        return $this->estado === self::ESTADO_BORRADOR;
+        return in_array($this->estado, [self::ESTADO_PENDIENTE, self::ESTADO_BORRADOR], true);
     }
 
     public function canBeEmitted(): bool
     {
-        return $this->estado === self::ESTADO_BORRADOR;
+        return in_array($this->estado, [self::ESTADO_PENDIENTE, self::ESTADO_BORRADOR], true);
     }
 
     public function canBeAnnulled(): bool
     {
-        return in_array($this->estado, [self::ESTADO_BORRADOR, self::ESTADO_EMITIDA], true);
+        return in_array($this->estado, [self::ESTADO_PENDIENTE, self::ESTADO_BORRADOR], true);
     }
 
     public function cliente()

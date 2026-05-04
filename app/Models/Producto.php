@@ -19,6 +19,7 @@ class Producto extends Model
         'iva_porcentaje',
         'stock',
         'unidad_medida',
+        'categoria_id',
         'activo',
     ];
 
@@ -42,7 +43,10 @@ class Producto extends Model
 
         return $query->where(function (Builder $subQuery) use ($buscar) {
             $subQuery->where('codigo', 'like', "%{$buscar}%")
-                ->orWhere('nombre', 'like', "%{$buscar}%");
+                ->orWhere('nombre', 'like', "%{$buscar}%")
+                ->orWhereHas('categoria', function (Builder $relationQuery) use ($buscar) {
+                    $relationQuery->where('nombre', 'like', "%{$buscar}%");
+                });
         });
     }
 
@@ -57,5 +61,10 @@ class Producto extends Model
             ->orderByRaw('CASE WHEN nombre LIKE ? THEN 0 ELSE 1 END', ["{$buscar}%"])
             ->orderBy('nombre')
             ->limit($limite);
+    }
+
+    public function categoria()
+    {
+        return $this->belongsTo(ProductoCategoria::class, 'categoria_id');
     }
 }

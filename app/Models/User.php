@@ -73,6 +73,11 @@ class User extends Authenticatable
         return $this->hasMany(Factura::class);
     }
 
+    public function pushDevices()
+    {
+        return $this->hasMany(UserPushDevice::class);
+    }
+
     public function normalizedRole(): ?string
     {
         return self::normalizeRoleValue($this->role);

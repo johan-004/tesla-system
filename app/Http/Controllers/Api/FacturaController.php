@@ -8,6 +8,9 @@ use App\Http\Requests\Api\Factura\UpdateFacturaRequest;
 use App\Http\Resources\FacturaResource;
 use App\Models\Factura;
 use App\Models\FacturaItem;
+use App\Models\Producto;
+use App\Models\Servicio;
+use App\Services\Alerts\AdminBusinessPushNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -56,14 +59,18 @@ class FacturaController extends Controller
             ],
             'stats' => [
                 'total' => (clone $baseQuery)->count(),
-                'borrador' => (clone $baseQuery)->where('estado', Factura::ESTADO_BORRADOR)->count(),
+                'pendiente' => (clone $baseQuery)->pendiente()->count(),
+                'borrador' => (clone $baseQuery)->pendiente()->count(), // Legacy key
                 'emitida' => (clone $baseQuery)->where('estado', Factura::ESTADO_EMITIDA)->count(),
                 'anulada' => (clone $baseQuery)->where('estado', Factura::ESTADO_ANULADA)->count(),
             ],
         ]);
     }
 
-    public function store(StoreFacturaRequest $request): JsonResponse
+    public function store(
+        StoreFacturaRequest $request,
+        AdminBusinessPushNotifier $adminBusinessPushNotifier
+    ): JsonResponse
     {
         $actor = $request->user();
 
@@ -89,7 +96,7 @@ class FacturaController extends Controller
                 'firma_nombre' => trim((string) ($payload['firma_nombre'] ?? 'María Alejandra Flórez Ocampo.')),
                 'firma_cargo' => trim((string) ($payload['firma_cargo'] ?? 'Representante Legal')),
                 'firma_empresa' => trim((string) ($payload['firma_empresa'] ?? 'Proyecciones eléctricas Tesla.')),
-                'estado' => Factura::ESTADO_BORRADOR,
+                'estado' => Factura::ESTADO_PENDIENTE,
                 'subtotal' => $calculated['subtotal'],
                 'iva_total' => $calculated['iva_total'],
                 'impuestos' => $calculated['iva_total'],
@@ -108,8 +115,13 @@ class FacturaController extends Controller
             return $factura;
         });
 
+        $adminBusinessPushNotifier->notifyFacturaCreatedBySeller(
+            $factura,
+            $actor
+        );
+
         return response()->json([
-            'message' => 'Factura guardada como borrador correctamente.',
+            'message' => 'Factura guardada como pendiente correctamente.',
             'data' => new FacturaResource($factura->load(['creator', 'updater', 'items'])),
         ], 201);
     }
@@ -126,7 +138,7 @@ class FacturaController extends Controller
     {
         if (! $factura->canBeUpdated()) {
             return response()->json([
-                'message' => 'Solo se puede editar una factura en estado borrador.',
+                'message' => 'Solo se puede editar una factura en estado pendiente.',
             ], 422);
         }
 
@@ -204,13 +216,15 @@ class FacturaController extends Controller
     public function emitir(Request $request, Factura $factura): JsonResponse
     {
         $actor = $request->user();
+        $notifier = app(AdminBusinessPushNotifier::class);
 
         if (! $factura->canBeEmitted()) {
             return response()->json([
-                'message' => 'Solo se pueden emitir facturas en estado borrador.',
+                'message' => 'Solo se pueden emitir facturas en estado pendiente.',
             ], 422);
         }
 
+        $productosSinStock = [];
         DB::transaction(function () use ($factura, $actor) {
             $factura = Factura::query()
                 ->lockForUpdate()
@@ -229,6 +243,8 @@ class FacturaController extends Controller
                 ]);
             }
 
+            $this->decrementStockForFacturaItems($factura->items->all());
+
             $factura->update([
                 'estado' => Factura::ESTADO_EMITIDA,
                 'emitida_at' => now(),
@@ -237,34 +253,40 @@ class FacturaController extends Controller
             ]);
         });
 
+        $factura = $factura->fresh(['creator', 'updater', 'emitter', 'items']);
+        $productosSinStock = $this->collectProductosSinStockAfterEmit($factura->items->all());
+        foreach ($productosSinStock as $producto) {
+            $notifier->notifyProductoOutOfStock($producto, $factura, $actor);
+        }
+
         return response()->json([
             'message' => 'Factura emitida correctamente.',
-            'data' => new FacturaResource($factura->fresh()->load(['creator', 'updater', 'emitter', 'items'])),
+            'data' => new FacturaResource($factura),
         ]);
     }
 
     public function anular(Request $request, Factura $factura): JsonResponse
     {
-        $actor = $request->user();
-
         if (! $factura->canBeAnnulled()) {
             return response()->json([
-                'message' => 'Solo se pueden anular facturas en estado borrador o emitida.',
+                'message' => 'Solo se pueden anular facturas en estado pendiente.',
             ], 422);
         }
 
+        $actor = $request->user();
+
         DB::transaction(function () use ($factura, $actor) {
-            $factura = Factura::query()
+            $locked = Factura::query()
                 ->lockForUpdate()
                 ->findOrFail($factura->id);
 
-            if (! $factura->canBeAnnulled()) {
+            if (! $locked->canBeAnnulled()) {
                 throw ValidationException::withMessages([
                     'estado' => 'La factura ya cambió de estado y no puede anularse.',
                 ]);
             }
 
-            $factura->update([
+            $locked->update([
                 'estado' => Factura::ESTADO_ANULADA,
                 'anulada_at' => now(),
                 'anulada_by' => $actor?->id,
@@ -282,7 +304,7 @@ class FacturaController extends Controller
     {
         if (! $factura->canBeUpdated()) {
             return response()->json([
-                'message' => 'Solo se pueden eliminar facturas en estado borrador.',
+                'message' => 'Solo se pueden eliminar facturas en estado pendiente.',
             ], 422);
         }
 
@@ -292,7 +314,7 @@ class FacturaController extends Controller
         });
 
         return response()->json([
-            'message' => 'Factura borrador eliminada correctamente.',
+            'message' => 'Factura pendiente eliminada correctamente.',
         ]);
     }
 
@@ -318,7 +340,7 @@ class FacturaController extends Controller
             return 0;
         }
 
-        if (preg_match('/^FAC-(?:\d{4}-)?(\d+)$/', trim($value), $matches) !== 1) {
+        if (preg_match('/^FAC-(\d+)$/', trim($value), $matches) !== 1) {
             return 0;
         }
 
@@ -339,12 +361,19 @@ class FacturaController extends Controller
         $total = 0.0;
 
         foreach ($items as $index => $item) {
+            $tipoItem = trim((string) ($item['tipo_item'] ?? ''));
             $productoId = isset($item['producto_id']) ? (int) $item['producto_id'] : null;
+            $servicioId = isset($item['servicio_id']) ? (int) $item['servicio_id'] : null;
             $cantidad = (float) ($item['cantidad'] ?? 0);
             $descripcion = trim((string) ($item['descripcion'] ?? ''));
             $unidad = trim((string) ($item['unidad'] ?? 'Un.'));
             $precioUnitario = (float) ($item['precio_unitario'] ?? 0);
             $ivaPorcentaje = (float) ($item['iva_porcentaje'] ?? 0);
+            $codigo = trim((string) ($item['codigo'] ?? ''));
+
+            if ($tipoItem === '') {
+                $tipoItem = $productoId ? 'producto' : 'servicio';
+            }
 
             if ($descripcion === '') {
                 throw ValidationException::withMessages([
@@ -378,8 +407,29 @@ class FacturaController extends Controller
             $ivaTotal += $ivaValor;
             $total += $totalLinea;
 
+            if ($tipoItem === 'producto' && $productoId) {
+                $producto = Producto::query()->find($productoId);
+                $codigo = $codigo !== '' ? $codigo : trim((string) ($producto?->codigo ?? ''));
+                if ($descripcion === '') {
+                    $descripcion = trim((string) ($producto?->nombre ?? ''));
+                }
+            } elseif ($tipoItem === 'servicio' && $servicioId) {
+                $servicio = Servicio::query()->find($servicioId);
+                $codigo = $codigo !== '' ? $codigo : trim((string) ($servicio?->codigo ?? ''));
+                if ($descripcion === '') {
+                    $descripcion = trim((string) ($servicio?->descripcion ?? ''));
+                }
+            }
+
+            if ($descripcion === '') {
+                $descripcion = 'Ítem sin nombre';
+            }
+
             $calculatedItems[] = [
+                'tipo_item' => $tipoItem === 'producto' ? 'producto' : 'servicio',
                 'producto_id' => $productoId,
+                'servicio_id' => $servicioId,
+                'codigo' => $codigo,
                 'orden' => $index + 1,
                 'descripcion' => $descripcion,
                 'unidad' => $unidad === '' ? 'Un.' : $unidad,
@@ -407,7 +457,10 @@ class FacturaController extends Controller
         foreach ($items as $item) {
             FacturaItem::query()->create([
                 'factura_id' => $factura->id,
+                'tipo_item' => $item['tipo_item'] ?? 'servicio',
                 'producto_id' => $item['producto_id'] ?? null,
+                'servicio_id' => $item['servicio_id'] ?? null,
+                'codigo' => $item['codigo'] ?? null,
                 'orden' => $item['orden'],
                 'descripcion' => $item['descripcion'],
                 'unidad' => $item['unidad'],
@@ -419,5 +472,68 @@ class FacturaController extends Controller
                 'total_linea' => $item['total_linea'],
             ]);
         }
+    }
+
+    private function decrementStockForFacturaItems(array $items): void
+    {
+        foreach ($items as $index => $item) {
+            if (($item->tipo_item ?? '') !== 'producto') {
+                continue;
+            }
+
+            $productoId = $item->producto_id;
+            if (! $productoId) {
+                continue;
+            }
+
+            $cantidad = (int) round((float) $item->cantidad);
+            if ($cantidad <= 0) {
+                continue;
+            }
+
+            $producto = Producto::query()->lockForUpdate()->find($productoId);
+            if (! $producto) {
+                throw ValidationException::withMessages([
+                    "items.{$index}" => 'El producto asociado al item ya no existe.',
+                ]);
+            }
+
+            if ((int) $producto->stock < $cantidad) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.cantidad" => sprintf(
+                        'Stock insuficiente para %s. Disponible: %d, solicitado: %d.',
+                        $producto->nombre,
+                        (int) $producto->stock,
+                        $cantidad
+                    ),
+                ]);
+            }
+
+            $producto->decrement('stock', $cantidad);
+        }
+    }
+
+    /**
+     * @param array<int, FacturaItem> $items
+     * @return array<int, Producto>
+     */
+    private function collectProductosSinStockAfterEmit(array $items): array
+    {
+        $productoIds = collect($items)
+            ->filter(fn (FacturaItem $item) => ($item->tipo_item ?? '') === 'producto' && (int) ($item->producto_id ?? 0) > 0)
+            ->map(fn (FacturaItem $item) => (int) $item->producto_id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($productoIds === []) {
+            return [];
+        }
+
+        return Producto::query()
+            ->whereIn('id', $productoIds)
+            ->where('stock', '<=', 0)
+            ->get()
+            ->all();
     }
 }

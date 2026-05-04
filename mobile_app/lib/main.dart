@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'core/auth/auth_controller.dart';
 import 'core/layout/adaptive_layout.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'core/storage/token_storage.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/desktop/presentation/desktop_shell_screen.dart';
 import 'features/mobile/presentation/mobile_shell_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PushNotificationService.instance.initialize();
 
   runApp(TeslaMobileApp(
     authController: AuthController(TokenStorage()),
@@ -41,10 +44,15 @@ class _TeslaMobileAppState extends State<TeslaMobileApp> {
   }
 
   Future<void> _bootstrap() async {
+    final restoreFuture = widget.authController.restoreSession();
+
     try {
-      await widget.authController.restoreSession();
+      await Future.any([
+        restoreFuture,
+        Future<void>.delayed(const Duration(seconds: 2)),
+      ]);
     } catch (_) {
-      // Evita bloqueo infinito del splash ante fallos de almacenamiento/plataforma.
+      // Ignorar para no bloquear la UI.
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -65,40 +73,69 @@ class _TeslaMobileAppState extends State<TeslaMobileApp> {
               seedColor: const Color(0xFF0F766E),
               brightness: Brightness.light,
             ),
+            fontFamily: 'TeslaSans',
             scaffoldBackgroundColor: const Color(0xFFF7F4EA),
             useMaterial3: true,
           ),
           builder: (context, child) {
             final content = child ?? const SizedBox.shrink();
+            final textEditingShortcuts = <ShortcutActivator, Intent>{
+              const SingleActivator(LogicalKeyboardKey.keyA, control: true):
+                  const SelectAllTextIntent(SelectionChangedCause.keyboard),
+              const SingleActivator(LogicalKeyboardKey.keyA, meta: true):
+                  const SelectAllTextIntent(SelectionChangedCause.keyboard),
+              const SingleActivator(LogicalKeyboardKey.keyC, control: true):
+                  CopySelectionTextIntent.copy,
+              const SingleActivator(LogicalKeyboardKey.keyC, meta: true):
+                  CopySelectionTextIntent.copy,
+              const SingleActivator(LogicalKeyboardKey.keyX, control: true):
+                  const CopySelectionTextIntent.cut(
+                    SelectionChangedCause.keyboard,
+                  ),
+              const SingleActivator(LogicalKeyboardKey.keyX, meta: true):
+                  const CopySelectionTextIntent.cut(
+                    SelectionChangedCause.keyboard,
+                  ),
+              const SingleActivator(LogicalKeyboardKey.keyV, control: true):
+                  const PasteTextIntent(SelectionChangedCause.keyboard),
+              const SingleActivator(LogicalKeyboardKey.keyV, meta: true):
+                  const PasteTextIntent(SelectionChangedCause.keyboard),
+            };
 
-            return NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (widget.authController.isAuthenticated) {
-                  widget.authController.registerActivity();
-                }
-                return false;
+            return Shortcuts(
+              shortcuts: <ShortcutActivator, Intent>{
+                ...WidgetsApp.defaultShortcuts,
+                ...textEditingShortcuts,
               },
-              child: Focus(
-                focusNode: _activityFocusNode,
-                autofocus: true,
-                onKeyEvent: (_, __) {
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
                   if (widget.authController.isAuthenticated) {
                     widget.authController.registerActivity();
                   }
-                  return KeyEventResult.ignored;
+                  return false;
                 },
-                child: Listener(
-                  behavior: HitTestBehavior.translucent,
-                  onPointerDown: (_) =>
-                      widget.authController.registerActivity(),
-                  onPointerMove: (_) =>
-                      widget.authController.registerActivity(),
-                  onPointerSignal: (_) =>
-                      widget.authController.registerActivity(),
-                  child: GestureDetector(
+                child: Focus(
+                  focusNode: _activityFocusNode,
+                  autofocus: true,
+                  onKeyEvent: (_, __) {
+                    if (widget.authController.isAuthenticated) {
+                      widget.authController.registerActivity();
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: Listener(
                     behavior: HitTestBehavior.translucent,
-                    onTap: widget.authController.registerActivity,
-                    child: content,
+                    onPointerDown: (_) =>
+                        widget.authController.registerActivity(),
+                    onPointerMove: (_) =>
+                        widget.authController.registerActivity(),
+                    onPointerSignal: (_) =>
+                        widget.authController.registerActivity(),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: widget.authController.registerActivity,
+                      child: content,
+                    ),
                   ),
                 ),
               ),

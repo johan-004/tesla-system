@@ -7,7 +7,10 @@ use App\Http\Controllers\Api\CotizacionController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FacturaController;
 use App\Http\Controllers\Api\ProductoController;
+use App\Http\Controllers\Api\PushDeviceController;
+use App\Http\Controllers\Api\ProductoCategoriaController;
 use App\Http\Controllers\Api\ServicioController;
+use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +35,10 @@ Route::prefix('v1')->group(function () {
             ->middleware('throttle:auth-sensitive');
         Route::patch('/auth/password', [AuthController::class, 'updatePassword'])
             ->middleware('throttle:auth-sensitive');
+        Route::post('/auth/push-token', [PushDeviceController::class, 'upsert']);
+        Route::delete('/auth/push-token', [PushDeviceController::class, 'delete']);
+        Route::get('/notificaciones', [UserNotificationController::class, 'index']);
+        Route::patch('/notificaciones/{notification}/leer', [UserNotificationController::class, 'markRead']);
 
         Route::get('dashboard/resumen', [DashboardController::class, 'resumen'])
             ->middleware([
@@ -42,6 +49,10 @@ Route::prefix('v1')->group(function () {
 
         Route::get('productos/sugerencias', [ProductoController::class, 'suggestions'])
             ->middleware('permission:productos.view');
+        Route::get('producto-categorias', [ProductoCategoriaController::class, 'index'])
+            ->middleware('permission:productos.view');
+        Route::post('producto-categorias', [ProductoCategoriaController::class, 'store'])
+            ->middleware('permission:productos.create');
         Route::get('productos', [ProductoController::class, 'index'])
             ->middleware('permission:productos.view');
         Route::get('productos/{producto}', [ProductoController::class, 'show'])

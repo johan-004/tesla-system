@@ -18,10 +18,12 @@ class CotizacionesScreen extends StatefulWidget {
     super.key,
     required this.authController,
     this.embedded = false,
+    this.initialSearch,
   });
 
   final AuthController authController;
   final bool embedded;
+  final String? initialSearch;
 
   @override
   State<CotizacionesScreen> createState() => _CotizacionesScreenState();
@@ -72,6 +74,14 @@ class _CotizacionesScreenState extends State<CotizacionesScreen> {
       ),
       pollingInterval: _pollingInterval,
     )..initialize();
+
+    final initialSearch = widget.initialSearch?.trim() ?? '';
+    if (initialSearch.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_controller.applySearch(initialSearch, reason: 'notification-open'));
+      });
+    }
   }
 
   @override
@@ -282,32 +292,47 @@ class _CotizacionesScreenState extends State<CotizacionesScreen> {
           else ...[
             _buildPrimaryAction(),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _buildHeroMetric('Total', '${stats.total}', compact: true),
-                _buildHeroMetric(
-                  'Pendientes',
-                  '${stats.pendiente}',
-                  compact: true,
-                ),
-                _buildHeroMetric(
-                  'Vistas',
-                  '${stats.visto}',
-                  compact: true,
-                ),
-                _buildHeroMetric(
-                  'Realizadas',
-                  '${stats.realizada}',
-                  compact: true,
-                ),
-                _buildHeroMetric(
-                  'Nulas',
-                  '${stats.nula}',
-                  compact: true,
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final metricWidth =
+                    ((constraints.maxWidth - 10) / 2).clamp(120.0, 160.0);
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildHeroMetric(
+                      'Total',
+                      '${stats.total}',
+                      compact: true,
+                      width: metricWidth,
+                    ),
+                    _buildHeroMetric(
+                      'Pendientes',
+                      '${stats.pendiente}',
+                      compact: true,
+                      width: metricWidth,
+                    ),
+                    _buildHeroMetric(
+                      'Vistas',
+                      '${stats.visto}',
+                      compact: true,
+                      width: metricWidth,
+                    ),
+                    _buildHeroMetric(
+                      'Realizadas',
+                      '${stats.realizada}',
+                      compact: true,
+                      width: metricWidth,
+                    ),
+                    _buildHeroMetric(
+                      'Nulas',
+                      '${stats.nula}',
+                      compact: true,
+                      width: metricWidth,
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ],
@@ -315,9 +340,14 @@ class _CotizacionesScreenState extends State<CotizacionesScreen> {
     );
   }
 
-  Widget _buildHeroMetric(String label, String value, {bool compact = false}) {
+  Widget _buildHeroMetric(
+    String label,
+    String value, {
+    bool compact = false,
+    double? width,
+  }) {
     return Container(
-      width: compact ? 145 : 160,
+      width: width ?? (compact ? 145 : 160),
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 14 : 16,
         vertical: compact ? 12 : 14,

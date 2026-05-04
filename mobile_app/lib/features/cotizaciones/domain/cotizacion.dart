@@ -131,7 +131,10 @@ class CotizacionDetalle {
   CotizacionDetalle({
     required this.id,
     required this.item,
+    required this.tipoItem,
     required this.servicioId,
+    required this.productoId,
+    required this.codigo,
     required this.descripcion,
     required this.unidad,
     required this.cantidad,
@@ -141,7 +144,10 @@ class CotizacionDetalle {
 
   final int id;
   final int item;
+  final String tipoItem;
   final int? servicioId;
+  final int? productoId;
+  final String codigo;
   final String descripcion;
   final String unidad;
   final String cantidad;
@@ -152,7 +158,10 @@ class CotizacionDetalle {
     return CotizacionDetalle(
       id: _parseInt(json['id']),
       item: _parseInt(json['item']),
+      tipoItem: json['tipo_item']?.toString() ?? 'servicio',
       servicioId: _parseNullableInt(json['servicio_id']),
+      productoId: _parseNullableInt(json['producto_id']),
+      codigo: json['codigo']?.toString() ?? '',
       descripcion: json['descripcion']?.toString() ?? '',
       unidad: json['unidad']?.toString() ?? '',
       cantidad: json['cantidad']?.toString() ?? '0',

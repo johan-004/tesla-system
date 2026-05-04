@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "92208672182",
+    "project_id": "tesla-system-304a3",
+    "storage_bucket": "tesla-system-304a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:92208672182:android:dd4b9a2d209b9b4b1f6517",
+        "android_client_info": {
+          "package_name": "com.example.tesla_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVgFR6inDxNYhyE82x2TAb5hLKxruqV70"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

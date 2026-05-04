@@ -96,141 +96,142 @@ class CotizacionPdfService {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                 children: [
-                _buildHeader(logo, layout: tableLayout),
-                pw.SizedBox(height: tableLayout.headerBottomSpacing),
-                pw.Text(
-                  '${_fallbackText(cotizacion.ciudad, fallback: 'Ciudad pendiente')}, ${_formatFechaLarga(fecha)}.',
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.titleFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: tableLayout.sectionSpacing),
-                pw.Text(
-                  'Señores:',
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyTitleFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  _fallbackText(
-                    cotizacion.clienteNombre,
-                    fallback: 'CLIENTE PENDIENTE',
-                  ).toUpperCase(),
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyTitleFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.Text(
-                  'NIT: ${_fallbackText(cotizacion.clienteNit, fallback: 'PENDIENTE')}',
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.Text(
-                  _fallbackText(
-                    cotizacion.clienteContacto,
-                    fallback: 'Representante pendiente',
-                  ).toUpperCase(),
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.Text(
-                  _fallbackText(
-                    cotizacion.clienteCargo,
-                    fallback: 'Cargo pendiente',
-                  ),
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.Text(
-                  _fallbackText(
-                    cotizacion.clienteCiudad,
-                    fallback: 'Ciudad pendiente',
-                  ),
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: tableLayout.sectionSpacing),
-                pw.Text(
-                  'Ref. COTIZACIÓN, ${_fallbackText(cotizacion.referencia, fallback: 'REFERENCIA PENDIENTE').toUpperCase()}.',
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyTitleFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: tableLayout.sectionSpacing),
-                pw.Text(
-                  _pdfIntroParagraphOne,
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.paragraphFontSize,
-                    lineSpacing: 1.35,
-                  ),
-                ),
-                pw.SizedBox(height: 6),
-                pw.Text(
-                  _pdfIntroParagraphTwo,
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.paragraphFontSize,
-                    lineSpacing: 1.35,
-                  ),
-                ),
-                pw.SizedBox(height: tableLayout.sectionSpacing),
-                pw.Text(
-                  'Cuadro descriptivo:',
-                  style: pw.TextStyle(
-                    fontSize: tableLayout.bodyTitleFontSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 6),
-                _buildDetallesTable(
-                  detalles: detalles,
-                  total: cotizacion.total,
-                  layout: tableLayout,
-                  minVisibleRows: targetVisibleRows,
-                ),
-                pw.SizedBox(height: tableLayout.afterTableSpacing),
-                pw.SizedBox(height: tableLayout.observacionesTopSpacing),
-                pw.Text(
-                  'Observaciones',
-                  style: pw.TextStyle(
-                    fontSize: 11,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Container(
-                  width: double.infinity,
-                  constraints: const pw.BoxConstraints(minHeight: 54),
-                  padding: pw.EdgeInsets.all(tableLayout.observacionesPadding),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey400),
-                    color: PdfColors.grey200,
-                    borderRadius: const pw.BorderRadius.all(
-                      pw.Radius.circular(6),
-                    ),
-                  ),
-                  child: pw.Text(
-                    hasObservaciones ? observaciones : '',
+                  _buildHeader(logo, layout: tableLayout),
+                  pw.SizedBox(height: tableLayout.headerBottomSpacing),
+                  pw.Text(
+                    '${_fallbackText(cotizacion.ciudad, fallback: 'Ciudad pendiente')}, ${_formatFechaLarga(fecha)}.',
                     style: pw.TextStyle(
-                      fontSize: tableLayout.observacionesFontSize,
-                      lineSpacing: 1.25,
+                      fontSize: tableLayout.titleFontSize,
+                      fontWeight: pw.FontWeight.bold,
                     ),
                   ),
-                ),
-                pw.SizedBox(height: tableLayout.beforeFooterSpacing),
-                _buildFooter(),
+                  pw.SizedBox(height: tableLayout.sectionSpacing),
+                  pw.Text(
+                    'Señores:',
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyTitleFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    _fallbackText(
+                      cotizacion.clienteNombre,
+                      fallback: 'CLIENTE PENDIENTE',
+                    ).toUpperCase(),
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyTitleFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    'NIT: ${_fallbackText(cotizacion.clienteNit, fallback: 'PENDIENTE')}',
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    _fallbackText(
+                      cotizacion.clienteContacto,
+                      fallback: 'Representante pendiente',
+                    ).toUpperCase(),
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    _fallbackText(
+                      cotizacion.clienteCargo,
+                      fallback: 'Cargo pendiente',
+                    ),
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    _fallbackText(
+                      cotizacion.clienteCiudad,
+                      fallback: 'Ciudad pendiente',
+                    ),
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: tableLayout.sectionSpacing),
+                  pw.Text(
+                    'Ref. COTIZACIÓN, ${_fallbackText(cotizacion.referencia, fallback: 'REFERENCIA PENDIENTE').toUpperCase()}.',
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyTitleFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: tableLayout.sectionSpacing),
+                  pw.Text(
+                    _pdfIntroParagraphOne,
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.paragraphFontSize,
+                      lineSpacing: 1.35,
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Text(
+                    _pdfIntroParagraphTwo,
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.paragraphFontSize,
+                      lineSpacing: 1.35,
+                    ),
+                  ),
+                  pw.SizedBox(height: tableLayout.sectionSpacing),
+                  pw.Text(
+                    'Cuadro descriptivo:',
+                    style: pw.TextStyle(
+                      fontSize: tableLayout.bodyTitleFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+                  _buildDetallesTable(
+                    detalles: detalles,
+                    total: cotizacion.total,
+                    layout: tableLayout,
+                    minVisibleRows: targetVisibleRows,
+                  ),
+                  pw.SizedBox(height: tableLayout.afterTableSpacing),
+                  pw.SizedBox(height: tableLayout.observacionesTopSpacing),
+                  pw.Text(
+                    'Observaciones',
+                    style: pw.TextStyle(
+                      fontSize: 11,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Container(
+                    width: double.infinity,
+                    constraints: const pw.BoxConstraints(minHeight: 54),
+                    padding:
+                        pw.EdgeInsets.all(tableLayout.observacionesPadding),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey400),
+                      color: PdfColors.grey200,
+                      borderRadius: const pw.BorderRadius.all(
+                        pw.Radius.circular(6),
+                      ),
+                    ),
+                    child: pw.Text(
+                      hasObservaciones ? observaciones : '',
+                      style: pw.TextStyle(
+                        fontSize: tableLayout.observacionesFontSize,
+                        lineSpacing: 1.25,
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(height: tableLayout.beforeFooterSpacing),
+                  _buildFooter(),
                 ],
               ),
               if (marcaAgua != null)
@@ -246,9 +247,9 @@ class CotizacionPdfService {
                     ),
                   ),
                 ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
 
@@ -277,178 +278,178 @@ class CotizacionPdfService {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                 children: [
-                _buildHeader(logo, layout: tableLayout),
-                pw.SizedBox(height: 32),
-                pw.Text(
-                  'EL ALCANCE DEL PROYECTO INCLUYE:',
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
+                  _buildHeader(logo, layout: tableLayout),
+                  pw.SizedBox(height: 32),
+                  pw.Text(
+                    'EL ALCANCE DEL PROYECTO INCLUYE:',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                ),
-                pw.SizedBox(height: 5),
-                for (final item in alcance) ...[
-                  _buildPdfListItem(
-                    text: item,
-                    fontSize: 10.5,
-                    markerType: _PdfMarkerType.bolt,
-                    markerColor: const PdfColor.fromInt(0xFF1D4ED8),
+                  pw.SizedBox(height: 5),
+                  for (final item in alcance) ...[
+                    _buildPdfListItem(
+                      text: item,
+                      fontSize: 10.5,
+                      markerType: _PdfMarkerType.bolt,
+                      markerColor: const PdfColor.fromInt(0xFF1D4ED8),
+                    ),
+                    pw.SizedBox(height: 2),
+                  ],
+                  pw.SizedBox(height: 36),
+                  pw.Text(
+                    'CONDICIONES DE LA OFERTA:',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                  pw.SizedBox(height: 2),
-                ],
-                pw.SizedBox(height: 36),
-                pw.Text(
-                  'CONDICIONES DE LA OFERTA:',
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 6),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(left: 44, right: 34),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.RichText(
-                        text: pw.TextSpan(
+                  pw.SizedBox(height: 6),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(left: 44, right: 34),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.RichText(
+                          text: pw.TextSpan(
+                            style: const pw.TextStyle(
+                              fontSize: 10.5,
+                              lineSpacing: 1.3,
+                            ),
+                            children: [
+                              pw.TextSpan(
+                                text: 'Tiempo de entrega:',
+                                style: pw.TextStyle(
+                                    fontWeight: pw.FontWeight.bold),
+                              ),
+                              pw.TextSpan(
+                                text:
+                                    ' El tiempo estimado para la ejecución del proyecto es de (${cotizacion.ofertaDiasTotales}) días calendario, salvo condiciones especiales que impidan el desarrollo normal de las actividades programadas. La distribución del tiempo de trabajo es la siguiente:',
+                              ),
+                            ],
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        _buildPdfListItem(
+                          text:
+                              '(${cotizacion.ofertaDiasEjecucion}) días de ejecución, a partir de este momento los predios podrán conectarse a la red de baja tensión, siempre y cuando cuenten con la acometida, caja para la instalación de medidor, caja de protecciones e instalación interna.',
+                          fontSize: 10.5,
+                          markerType: _PdfMarkerType.check,
+                        ),
+                        pw.SizedBox(height: 2),
+                        _buildPdfListItem(
+                          text:
+                              '(${cotizacion.ofertaDiasTramitologia}) días tramitología ante EMSA.',
+                          fontSize: 10.5,
+                          markerType: _PdfMarkerType.check,
+                        ),
+                        pw.SizedBox(height: 8),
+                        _buildPdfListItem(
+                          text: 'Forma de pago:',
+                          fontSize: 11.5,
+                          markerType: _PdfMarkerType.bolt,
+                          markerColor: const PdfColor.fromInt(0xFF1D4ED8),
+                          bold: true,
+                        ),
+                        pw.SizedBox(height: 3),
+                        pw.Text(
+                          'La forma de pago para el desarrollo del proyecto se establece de la siguiente manera:',
                           style: const pw.TextStyle(
                             fontSize: 10.5,
                             lineSpacing: 1.3,
                           ),
-                          children: [
-                            pw.TextSpan(
-                              text: 'Tiempo de entrega:',
-                              style:
-                                  pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                            ),
-                            pw.TextSpan(
-                              text:
-                                  ' El tiempo estimado para la ejecución del proyecto es de (${cotizacion.ofertaDiasTotales}) días calendario, salvo condiciones especiales que impidan el desarrollo normal de las actividades programadas. La distribución del tiempo de trabajo es la siguiente:',
-                            ),
-                          ],
                         ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      _buildPdfListItem(
-                        text:
-                            '(${cotizacion.ofertaDiasEjecucion}) días de ejecución, a partir de este momento los predios podrán conectarse a la red de baja tensión, siempre y cuando cuenten con la acometida, caja para la instalación de medidor, caja de protecciones e instalación interna.',
-                        fontSize: 10.5,
-                        markerType: _PdfMarkerType.check,
-                      ),
-                      pw.SizedBox(height: 2),
-                      _buildPdfListItem(
-                        text:
-                            '(${cotizacion.ofertaDiasTramitologia}) días tramitología ante EMSA.',
-                        fontSize: 10.5,
-                        markerType: _PdfMarkerType.check,
-                      ),
-                      pw.SizedBox(height: 8),
-                      _buildPdfListItem(
-                        text: 'Forma de pago:',
-                        fontSize: 11.5,
-                        markerType: _PdfMarkerType.bolt,
-                        markerColor: const PdfColor.fromInt(0xFF1D4ED8),
-                        bold: true,
-                      ),
-                      pw.SizedBox(height: 3),
-                      pw.Text(
-                        'La forma de pago para el desarrollo del proyecto se establece de la siguiente manera:',
-                        style: const pw.TextStyle(
+                        pw.SizedBox(height: 4),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(left: 18),
+                          child: pw.RichText(
+                            text: pw.TextSpan(
+                              style: const pw.TextStyle(
+                                fontSize: 10.5,
+                                lineSpacing: 1.3,
+                              ),
+                              children: [
+                                pw.TextSpan(
+                                  text: 'Pago 1:',
+                                  style: pw.TextStyle(
+                                      fontWeight: pw.FontWeight.bold),
+                                ),
+                                pw.TextSpan(
+                                  text:
+                                      ' Correspondiente al ${cotizacion.ofertaPago1Pct}% del valor total del contrato, contra entrega de la orden de servicio.',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        pw.SizedBox(height: 1),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(left: 18),
+                          child: pw.RichText(
+                            text: pw.TextSpan(
+                              style: const pw.TextStyle(
+                                fontSize: 10.5,
+                                lineSpacing: 1.3,
+                              ),
+                              children: [
+                                pw.TextSpan(
+                                  text: 'Pago 2:',
+                                  style: pw.TextStyle(
+                                      fontWeight: pw.FontWeight.bold),
+                                ),
+                                pw.TextSpan(
+                                  text:
+                                      ' Correspondiente al ${cotizacion.ofertaPago2Pct}% del valor total, una vez se energice el transformador y la red de baja tensión.',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        pw.SizedBox(height: 1),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(left: 18),
+                          child: pw.RichText(
+                            text: pw.TextSpan(
+                              style: const pw.TextStyle(
+                                fontSize: 10.5,
+                                lineSpacing: 1.3,
+                              ),
+                              children: [
+                                pw.TextSpan(
+                                  text: 'Pago 3:',
+                                  style: pw.TextStyle(
+                                      fontWeight: pw.FontWeight.bold),
+                                ),
+                                pw.TextSpan(
+                                  text:
+                                      ' Correspondiente al ${cotizacion.ofertaPago3Pct}% restante, último pago parcial, a realizar una vez se instalen los medidores en los predios legalizados.',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        pw.SizedBox(height: 8),
+                        _buildPdfListItem(
+                          text:
+                              'Garantía: ${cotizacion.ofertaGarantiaMeses} meses, bajo condiciones eléctricas normales.',
                           fontSize: 10.5,
-                          lineSpacing: 1.3,
+                          markerType: _PdfMarkerType.bolt,
+                          markerColor: const PdfColor.fromInt(0xFF1D4ED8),
+                          bold: true,
                         ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(left: 18),
-                        child: pw.RichText(
-                          text: pw.TextSpan(
-                            style: const pw.TextStyle(
-                              fontSize: 10.5,
-                              lineSpacing: 1.3,
-                            ),
-                            children: [
-                              pw.TextSpan(
-                                text: 'Pago 1:',
-                                style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold),
-                              ),
-                              pw.TextSpan(
-                                text:
-                                    ' Correspondiente al ${cotizacion.ofertaPago1Pct}% del valor total del contrato, contra entrega de la orden de servicio.',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      pw.SizedBox(height: 1),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(left: 18),
-                        child: pw.RichText(
-                          text: pw.TextSpan(
-                            style: const pw.TextStyle(
-                              fontSize: 10.5,
-                              lineSpacing: 1.3,
-                            ),
-                            children: [
-                              pw.TextSpan(
-                                text: 'Pago 2:',
-                                style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold),
-                              ),
-                              pw.TextSpan(
-                                text:
-                                    ' Correspondiente al ${cotizacion.ofertaPago2Pct}% del valor total, una vez se energice el transformador y la red de baja tensión.',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      pw.SizedBox(height: 1),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(left: 18),
-                        child: pw.RichText(
-                          text: pw.TextSpan(
-                            style: const pw.TextStyle(
-                              fontSize: 10.5,
-                              lineSpacing: 1.3,
-                            ),
-                            children: [
-                              pw.TextSpan(
-                                text: 'Pago 3:',
-                                style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold),
-                              ),
-                              pw.TextSpan(
-                                text:
-                                    ' Correspondiente al ${cotizacion.ofertaPago3Pct}% restante, último pago parcial, a realizar una vez se instalen los medidores en los predios legalizados.',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      pw.SizedBox(height: 8),
-                      _buildPdfListItem(
-                        text:
-                            'Garantía: ${cotizacion.ofertaGarantiaMeses} meses, bajo condiciones eléctricas normales.',
-                        fontSize: 10.5,
-                        markerType: _PdfMarkerType.bolt,
-                        markerColor: const PdfColor.fromInt(0xFF1D4ED8),
-                        bold: true,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                pw.Spacer(),
-                _buildSignatureBlock(
-                  firmaImage: firmaImage,
-                  firmaNombre: firmaNombre,
-                  firmaCargo: firmaCargo,
-                  firmaEmpresa: firmaEmpresa,
-                ),
-                pw.SizedBox(height: 8),
-                _buildFooter(),
+                  pw.Spacer(),
+                  _buildSignatureBlock(
+                    firmaImage: firmaImage,
+                    firmaNombre: firmaNombre,
+                    firmaCargo: firmaCargo,
+                    firmaEmpresa: firmaEmpresa,
+                  ),
+                  pw.SizedBox(height: 8),
+                  _buildFooter(),
                 ],
               ),
             ],
@@ -483,6 +484,7 @@ class CotizacionPdfService {
             .map(
               (detalle) => <String>[
                 detalle.item > 0 ? '${detalle.item}' : '-',
+                _fallbackText(detalle.codigo, fallback: '-'),
                 _normalizeDescripcionForTable(
                   _fallbackText(detalle.descripcion, fallback: '-'),
                   maxLength: layout.maxDescripcionChars,
@@ -504,60 +506,115 @@ class CotizacionPdfService {
         '',
         '',
         '',
+        '',
       ]);
     }
 
-    final mainTable = pw.TableHelper.fromTextArray(
-      border: const pw.TableBorder(
-        left: pw.BorderSide(color: PdfColors.blueGrey100),
-        right: pw.BorderSide(color: PdfColors.blueGrey100),
-        top: pw.BorderSide(color: PdfColors.blueGrey100),
-        bottom: pw.BorderSide.none,
-        horizontalInside: pw.BorderSide(color: PdfColors.blueGrey100),
-        verticalInside: pw.BorderSide(color: PdfColors.blueGrey100),
-      ),
-      headers: const [
-        'ITEM',
-        'DESCRIPCIÓN',
-        'MEDIDA',
-        'CANT.',
-        'C_UNITARIO',
-        'C_TOTAL'
+    final border = const pw.TableBorder(
+      left: pw.BorderSide(color: PdfColors.blueGrey100),
+      right: pw.BorderSide(color: PdfColors.blueGrey100),
+      top: pw.BorderSide(color: PdfColors.blueGrey100),
+      bottom: pw.BorderSide(color: PdfColors.blueGrey100),
+      horizontalInside: pw.BorderSide(color: PdfColors.blueGrey100),
+      verticalInside: pw.BorderSide(color: PdfColors.blueGrey100),
+    );
+    const widths = <int, pw.TableColumnWidth>{
+      0: pw.FixedColumnWidth(36),
+      1: pw.FixedColumnWidth(68),
+      2: pw.FlexColumnWidth(3.0),
+      3: pw.FixedColumnWidth(56),
+      4: pw.FixedColumnWidth(44),
+      5: pw.FixedColumnWidth(86),
+      6: pw.FixedColumnWidth(86),
+    };
+    final headerStyle = pw.TextStyle(
+      fontSize: layout.headerFontSize,
+      fontWeight: pw.FontWeight.bold,
+    );
+    final cellStyle = pw.TextStyle(
+      fontSize: layout.cellFontSize,
+      lineSpacing: 1.0,
+    );
+
+    final mainTable = pw.Table(
+      border: border,
+      columnWidths: widths,
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.blueGrey50),
+          children: [
+            _cotizacionCell('ITEM',
+                style: headerStyle,
+                height: layout.headerHeight,
+                align: pw.Alignment.center),
+            _cotizacionCell('CÓDIGO',
+                style: headerStyle,
+                height: layout.headerHeight,
+                align: pw.Alignment.center),
+            _cotizacionCell('DESCRIPCIÓN',
+                style: headerStyle,
+                height: layout.headerHeight,
+                align: pw.Alignment.center),
+            _cotizacionCell('MEDIDA',
+                style: headerStyle,
+                height: layout.headerHeight,
+                align: pw.Alignment.center),
+            _cotizacionCell('CANT.',
+                style: headerStyle,
+                height: layout.headerHeight,
+                align: pw.Alignment.center),
+            _cotizacionCell('C_UNITARIO',
+                style: headerStyle,
+                height: layout.headerHeight,
+                align: pw.Alignment.centerRight),
+            _cotizacionCell('C_TOTAL',
+                style: headerStyle,
+                height: layout.headerHeight,
+                align: pw.Alignment.centerRight),
+          ],
+        ),
+        ...rows.map(
+          (row) => pw.TableRow(
+            children: [
+              _cotizacionCell(row[0],
+                  style: cellStyle,
+                  height: layout.cellHeight,
+                  align: pw.Alignment.center),
+              _cotizacionCell(row[1],
+                  style: cellStyle,
+                  height: layout.cellHeight,
+                  align: pw.Alignment.center),
+              _cotizacionCell(row[2],
+                  style: cellStyle,
+                  height: layout.cellHeight,
+                  align: pw.Alignment.centerLeft),
+              _cotizacionCell(row[3],
+                  style: cellStyle,
+                  height: layout.cellHeight,
+                  align: pw.Alignment.center),
+              _cotizacionCell(row[4],
+                  style: cellStyle,
+                  height: layout.cellHeight,
+                  align: pw.Alignment.center),
+              _cotizacionCell(row[5],
+                  style: cellStyle,
+                  height: layout.cellHeight,
+                  align: pw.Alignment.centerRight),
+              _cotizacionCell(row[6],
+                  style: cellStyle,
+                  height: layout.cellHeight,
+                  align: pw.Alignment.centerRight),
+            ],
+          ),
+        ),
       ],
-      data: rows,
-      headerHeight: layout.headerHeight,
-      cellHeight: layout.cellHeight,
-      headerStyle: pw.TextStyle(
-        fontSize: layout.headerFontSize,
-        fontWeight: pw.FontWeight.bold,
-      ),
-      cellStyle: pw.TextStyle(
-        fontSize: layout.cellFontSize,
-        lineSpacing: 1.2,
-      ),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey50),
-      cellAlignments: {
-        0: pw.Alignment.center,
-        2: pw.Alignment.center,
-        3: pw.Alignment.center,
-        4: pw.Alignment.centerRight,
-        5: pw.Alignment.centerRight,
-      },
-      columnWidths: {
-        0: const pw.FixedColumnWidth(36),
-        1: const pw.FlexColumnWidth(3.6),
-        2: const pw.FixedColumnWidth(58),
-        3: const pw.FixedColumnWidth(44),
-        4: const pw.FixedColumnWidth(88),
-        5: const pw.FixedColumnWidth(88),
-      },
     );
 
     final totalRow = pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.blueGrey100),
+      border: border,
       columnWidths: const {
         0: pw.FlexColumnWidth(),
-        1: pw.FixedColumnWidth(88),
+        1: pw.FixedColumnWidth(86),
       },
       children: [
         pw.TableRow(
@@ -569,7 +626,7 @@ class CotizacionPdfService {
               child: pw.Text(
                 'TOTAL',
                 style: pw.TextStyle(
-                  fontSize: layout.cellFontSize,
+                  fontSize: layout.headerFontSize,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
@@ -581,7 +638,7 @@ class CotizacionPdfService {
               child: pw.Text(
                 PriceFormatter.formatCopWhole(total),
                 style: pw.TextStyle(
-                  fontSize: layout.cellFontSize,
+                  fontSize: layout.headerFontSize,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
@@ -597,6 +654,24 @@ class CotizacionPdfService {
         mainTable,
         totalRow,
       ],
+    );
+  }
+
+  static pw.Widget _cotizacionCell(
+    String value, {
+    required pw.TextStyle style,
+    required double height,
+    required pw.Alignment align,
+  }) {
+    return pw.Container(
+      height: height,
+      alignment: align,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      child: pw.Text(
+        value,
+        style: style,
+        maxLines: 1,
+      ),
     );
   }
 

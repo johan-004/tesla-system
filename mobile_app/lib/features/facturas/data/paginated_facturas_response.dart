@@ -36,26 +36,27 @@ class PaginatedFacturasResponse {
 class FacturasStats {
   const FacturasStats({
     required this.total,
-    required this.borrador,
+    required this.pendiente,
     required this.emitida,
     required this.anulada,
   });
 
   const FacturasStats.empty()
       : total = 0,
-        borrador = 0,
+        pendiente = 0,
         emitida = 0,
         anulada = 0;
 
   final int total;
-  final int borrador;
+  final int pendiente;
   final int emitida;
   final int anulada;
+  int get borrador => pendiente; // Legacy alias for older UI paths.
 
   factory FacturasStats.fromJson(Map<String, dynamic> json) {
     return FacturasStats(
       total: json['total'] as int? ?? 0,
-      borrador: json['borrador'] as int? ?? 0,
+      pendiente: (json['pendiente'] as int?) ?? (json['borrador'] as int?) ?? 0,
       emitida: json['emitida'] as int? ?? 0,
       anulada: json['anulada'] as int? ?? 0,
     );

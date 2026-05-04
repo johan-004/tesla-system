@@ -12,6 +12,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/layout/adaptive_layout.dart';
 import '../../../shared/utils/price_formatter.dart';
+import '../../productos/domain/producto.dart';
 import '../../servicios/domain/servicio.dart';
 import '../domain/factura.dart';
 import '../domain/factura_item.dart';
@@ -24,6 +25,7 @@ class FacturaFormScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.canEditFacturacion,
+    this.canEditFirma = false,
     this.initialFactura,
     this.readOnly = false,
     this.defaultFirmaPath,
@@ -36,6 +38,7 @@ class FacturaFormScreen extends StatefulWidget {
   final FacturasController controller;
   final Factura? initialFactura;
   final bool canEditFacturacion;
+  final bool canEditFirma;
   final bool readOnly;
   final String? defaultFirmaPath;
   final String? defaultFirmaNombre;
@@ -73,6 +76,7 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
 
   final List<_FacturaItemDraft> _items = [];
   List<Servicio> _servicios = const [];
+  List<Producto> _productos = const [];
   bool _isLoadingServicios = false;
   bool _isUploadingFirma = false;
   bool _usarFirmaPredeterminada = false;
@@ -201,9 +205,12 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
     try {
       final servicios =
           await widget.controller.repository.fetchServiciosDisponibles();
+      final productos =
+          await widget.controller.repository.fetchProductosDisponibles();
       if (!mounted) return;
       setState(() {
         _servicios = servicios;
+        _productos = productos;
       });
     } catch (_) {
       if (!mounted) return;
@@ -422,13 +429,15 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 14),
-                                _buildCard(
-                                  title: 'Firma y notas',
-                                  subtitle:
-                                      'Esta firma se mostrará en la cuenta de cobro.',
-                                  child: _buildFirmaSection(isDesktop),
-                                ),
-                                const SizedBox(height: 14),
+                                if (widget.canEditFirma) ...[
+                                  _buildCard(
+                                    title: 'Firma y notas',
+                                    subtitle:
+                                        'Esta firma se mostrará en la cuenta de cobro.',
+                                    child: _buildFirmaSection(isDesktop),
+                                  ),
+                                  const SizedBox(height: 14),
+                                ],
                                 _buildCard(
                                   title: 'Total',
                                   subtitle: 'Se calcula automáticamente.',
@@ -504,28 +513,74 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text('Item ${index + 1}',
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: _canEdit ? () => _pickServicio(item) : null,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Servicio'),
-              ),
-              IconButton(
-                onPressed: _canEdit ? () => _removeItemRow(index) : null,
-                icon: const Icon(Icons.delete_outline_rounded),
-              ),
-            ],
-          ),
+          isDesktop
+              ? Row(
+                  children: [
+                    Text('Item ${index + 1}',
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: _canEdit ? () => _pickServicio(item) : null,
+                      icon: const Icon(Icons.search_rounded),
+                      label: const Text('Servicio'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _canEdit ? () => _pickProducto(item) : null,
+                      icon: const Icon(Icons.inventory_2_outlined),
+                      label: const Text('Producto'),
+                    ),
+                    IconButton(
+                      onPressed: _canEdit ? () => _removeItemRow(index) : null,
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ],
+                )
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      Text('Item ${index + 1}',
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        onPressed: _canEdit ? () => _pickServicio(item) : null,
+                        icon: const Icon(Icons.search_rounded, size: 18),
+                        label: const Text('Servicio'),
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        onPressed: _canEdit ? () => _pickProducto(item) : null,
+                        icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                        label: const Text('Producto'),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: _canEdit ? () => _removeItemRow(index) : null,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ],
+                  ),
+                ),
           _buildTextField(
             controller: item.descripcionController,
             label: 'Descripción',
-            hintText: 'Descripción del servicio',
+            hintText: 'Descripción del ítem',
             enabled: _canEdit,
             maxLines: 2,
+          ),
+          const SizedBox(height: 8),
+          _buildTextField(
+            controller: item.codigoController,
+            label: 'Código',
+            hintText: 'SER-001 / PRO-001',
+            enabled: false,
           ),
           const SizedBox(height: 8),
           if (isDesktop)
@@ -541,8 +596,13 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                    child: _numberField(
-                        item.cantidadController, 'Cant.', _canEdit)),
+                  child: _numberField(
+                    item.cantidadController,
+                    'Cant.',
+                    _canEdit,
+                    errorText: _stockErrorForItem(item),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                     child: _numberField(
@@ -561,7 +621,12 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
               enabled: _canEdit,
             ),
             const SizedBox(height: 8),
-            _numberField(item.cantidadController, 'Cant.', _canEdit),
+            _numberField(
+              item.cantidadController,
+              'Cant.',
+              _canEdit,
+              errorText: _stockErrorForItem(item),
+            ),
             const SizedBox(height: 8),
             _numberField(item.precioUnitarioController, 'V. Unit', _canEdit),
             const SizedBox(height: 8),
@@ -573,19 +638,53 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
     );
   }
 
-  Widget _numberField(TextEditingController c, String label, bool enabled) {
+  Widget _numberField(
+    TextEditingController c,
+    String label,
+    bool enabled, {
+    String? errorText,
+  }) {
     return TextField(
       controller: c,
       enabled: enabled,
+      enableInteractiveSelection: true,
+      contextMenuBuilder: (context, editableTextState) =>
+          AdaptiveTextSelectionToolbar.editableText(
+              editableTextState: editableTextState),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: (_) => setState(() {}),
       decoration: InputDecoration(
         labelText: label,
+        errorText: errorText,
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  String? _stockErrorForItem(_FacturaItemDraft item) {
+    if (item.tipoItem != 'producto' || item.productoId == null) {
+      return null;
+    }
+
+    Producto? producto;
+    for (final candidate in _productos) {
+      if (candidate.id == item.productoId) {
+        producto = candidate;
+        break;
+      }
+    }
+    if (producto == null) {
+      return null;
+    }
+
+    final cantidad = item.cantidad;
+    if (cantidad <= producto.stock) {
+      return null;
+    }
+
+    return 'Límite de stock superado';
   }
 
   Widget _buildTextField({
@@ -598,6 +697,10 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
     return TextField(
       controller: controller,
       enabled: enabled,
+      enableInteractiveSelection: true,
+      contextMenuBuilder: (context, editableTextState) =>
+          AdaptiveTextSelectionToolbar.editableText(
+              editableTextState: editableTextState),
       maxLines: maxLines,
       decoration: InputDecoration(
         labelText: label,
@@ -1053,6 +1156,7 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
       setState(() => _error = 'No hay servicios disponibles para seleccionar.');
       return;
     }
+    FocusScope.of(context).unfocus();
 
     final selected = await showDialog<Servicio>(
       context: context,
@@ -1064,6 +1168,26 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
     setState(() {
       _error = null;
       item.applyServicio(selected);
+    });
+  }
+
+  Future<void> _pickProducto(_FacturaItemDraft item) async {
+    if (_productos.isEmpty) {
+      setState(() => _error = 'No hay productos disponibles para seleccionar.');
+      return;
+    }
+    FocusScope.of(context).unfocus();
+
+    final selected = await showDialog<Producto>(
+      context: context,
+      builder: (_) => _ProductoPickerDialog(productos: _productos),
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      _error = null;
+      item.applyProducto(selected);
     });
   }
 
@@ -1152,6 +1276,9 @@ class _FacturaFormScreenState extends State<FacturaFormScreen> {
       if (item.cantidad <= 0) {
         return 'Cantidad inválida en fila ${i + 1}.';
       }
+      if (_stockErrorForItem(item) != null) {
+        return 'Límite de stock superado en fila ${i + 1}.';
+      }
       if (item.precioUnitario < 0) {
         return 'Valor unitario inválido en fila ${i + 1}.';
       }
@@ -1187,10 +1314,12 @@ class _FacturaItemDraft {
   _FacturaItemDraft({
     required this.orden,
     required String descripcion,
+    required String codigo,
     required String unidad,
     required String cantidad,
     required String precioUnitario,
-  })  : descripcionController = TextEditingController(text: descripcion),
+  })  : codigoController = TextEditingController(text: codigo),
+        descripcionController = TextEditingController(text: descripcion),
         unidadController = TextEditingController(text: unidad),
         cantidadController = TextEditingController(text: cantidad),
         precioUnitarioController = TextEditingController(text: precioUnitario);
@@ -1198,6 +1327,7 @@ class _FacturaItemDraft {
   factory _FacturaItemDraft.empty({required int orden}) => _FacturaItemDraft(
         orden: orden,
         descripcion: '',
+        codigo: '',
         unidad: 'Un.',
         cantidad: '',
         precioUnitario: '',
@@ -1207,18 +1337,27 @@ class _FacturaItemDraft {
       _FacturaItemDraft(
         orden: item.orden,
         descripcion: item.descripcion,
+        codigo: item.codigo,
         unidad: item.unidad,
         cantidad: item.cantidad,
         precioUnitario: item.precioUnitario,
-      );
+      )
+        ..tipoItem = item.tipoItem
+        ..servicioId = item.servicioId
+        ..productoId = item.productoId;
 
   int orden;
+  String tipoItem = 'servicio';
+  int? servicioId;
+  int? productoId;
+  final TextEditingController codigoController;
   final TextEditingController descripcionController;
   final TextEditingController unidadController;
   final TextEditingController cantidadController;
   final TextEditingController precioUnitarioController;
 
   String get descripcion => descripcionController.text.trim();
+  String get codigo => codigoController.text.trim();
   String get unidad => unidadController.text.trim();
   double get cantidad => PriceFormatter.parse(cantidadController.text);
   double get precioUnitario =>
@@ -1226,6 +1365,10 @@ class _FacturaItemDraft {
   double get totalLinea => cantidad * precioUnitario;
 
   void applyServicio(Servicio servicio) {
+    tipoItem = 'servicio';
+    servicioId = servicio.id;
+    productoId = null;
+    codigoController.text = servicio.codigo;
     descripcionController.text = servicio.descripcion;
     unidadController.text =
         servicio.unidad.trim().isEmpty ? 'Un.' : servicio.unidad;
@@ -1236,8 +1379,24 @@ class _FacturaItemDraft {
     }
   }
 
+  void applyProducto(Producto producto) {
+    tipoItem = 'producto';
+    productoId = producto.id;
+    servicioId = null;
+    codigoController.text = producto.codigo;
+    descripcionController.text = producto.nombre;
+    unidadController.text =
+        producto.unidadMedida.trim().isEmpty ? 'Un.' : producto.unidadMedida;
+    precioUnitarioController.text =
+        PriceFormatter.parse(producto.precioVenta).toStringAsFixed(0);
+    if (cantidadController.text.trim().isEmpty) {
+      cantidadController.text = '1';
+    }
+  }
+
   void reset() {
     descripcionController.clear();
+    codigoController.clear();
     unidadController.text = 'Un.';
     cantidadController.clear();
     precioUnitarioController.clear();
@@ -1245,6 +1404,10 @@ class _FacturaItemDraft {
 
   Map<String, dynamic> toPayload() => {
         'descripcion': descripcion,
+        'tipo_item': tipoItem,
+        'servicio_id': servicioId,
+        'producto_id': productoId,
+        'codigo': codigo,
         'unidad': unidad.isEmpty ? 'Un.' : unidad,
         'cantidad': cantidad,
         'precio_unitario': precioUnitario,
@@ -1252,10 +1415,145 @@ class _FacturaItemDraft {
       };
 
   void dispose() {
+    codigoController.dispose();
     descripcionController.dispose();
     unidadController.dispose();
     cantidadController.dispose();
     precioUnitarioController.dispose();
+  }
+}
+
+class _ProductoPickerDialog extends StatefulWidget {
+  const _ProductoPickerDialog({required this.productos});
+
+  final List<Producto> productos;
+
+  @override
+  State<_ProductoPickerDialog> createState() => _ProductoPickerDialogState();
+}
+
+class _ProductoPickerDialogState extends State<_ProductoPickerDialog> {
+  late final TextEditingController _searchController;
+  String _query = '';
+  String _categoriaSeleccionada = '__all__';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categorias = <String>{
+      for (final producto in widget.productos)
+        producto.categoriaNombre.trim().isEmpty
+            ? 'Sin categoría'
+            : producto.categoriaNombre.trim(),
+    }.toList()
+      ..sort();
+
+    final filtered = widget.productos.where((producto) {
+      final query = _query.trim().toLowerCase();
+      final categoriaNombre = producto.categoriaNombre.trim().isEmpty
+          ? 'Sin categoría'
+          : producto.categoriaNombre.trim();
+      final matchesCategoria = _categoriaSeleccionada == '__all__'
+          ? true
+          : categoriaNombre == _categoriaSeleccionada;
+      if (query.isEmpty) return true;
+      final matchesBusqueda = producto.nombre.toLowerCase().contains(query) ||
+          producto.codigo.toLowerCase().contains(query);
+      return matchesCategoria && matchesBusqueda;
+    }).where((producto) {
+      final categoriaNombre = producto.categoriaNombre.trim().isEmpty
+          ? 'Sin categoría'
+          : producto.categoriaNombre.trim();
+      return _categoriaSeleccionada == '__all__'
+          ? true
+          : categoriaNombre == _categoriaSeleccionada;
+    }).toList();
+
+    return AlertDialog(
+      title: const Text('Seleccionar producto'),
+      content: SizedBox(
+        width: 640,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'Buscar producto',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+            ),
+            const SizedBox(height: 10),
+            InputDecorator(
+              decoration: InputDecoration(
+                labelText: 'Categoría',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: _categoriaSeleccionada,
+                  items: [
+                    const DropdownMenuItem(
+                      value: '__all__',
+                      child: Text('Todas'),
+                    ),
+                    for (final categoria in categorias)
+                      DropdownMenuItem(
+                        value: categoria,
+                        child: Text(categoria),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _categoriaSeleccionada = value);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 320,
+              child: ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final producto = filtered[index];
+                  return ListTile(
+                    title: Text(producto.nombre),
+                    subtitle: Text(
+                      '${producto.codigo} · ${producto.categoriaNombre} · ${producto.unidadMedida} · Stock: ${producto.stock} · ${PriceFormatter.formatCopWhole(producto.precioVenta)}',
+                    ),
+                    onTap: () => Navigator.of(context).pop(producto),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cerrar'),
+        ),
+      ],
+    );
   }
 }
 
@@ -1290,9 +1588,7 @@ class _ServicioPickerDialogState extends State<_ServicioPickerDialog> {
     final categorias = <String>{
       for (final servicio in widget.servicios)
         normalizeServiceCategory(servicio.categoria),
-    }
-        .where((categoria) => categoria.isNotEmpty)
-        .toList()
+    }.where((categoria) => categoria.isNotEmpty).toList()
       ..sort();
 
     final filtered = widget.servicios.where((servicio) {

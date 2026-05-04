@@ -20,10 +20,12 @@ class FacturasScreen extends StatefulWidget {
     super.key,
     required this.authController,
     this.embedded = false,
+    this.initialSearch,
   });
 
   final AuthController authController;
   final bool embedded;
+  final String? initialSearch;
 
   @override
   State<FacturasScreen> createState() => _FacturasScreenState();
@@ -52,6 +54,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
   bool get _isInitialLoading => _state.isInitialLoading;
   bool get _canCreate => widget.authController.canCreateFacturacion;
   bool get _canEdit => widget.authController.canEditFacturacion;
+  bool get _canEditFirma => widget.authController.isAdministrador;
 
   @override
   void initState() {
@@ -62,6 +65,14 @@ class _FacturasScreenState extends State<FacturasScreen> {
       ),
       pollingInterval: _pollingInterval,
     )..initialize();
+
+    final initialSearch = widget.initialSearch?.trim() ?? '';
+    if (initialSearch.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_controller.applySearch(initialSearch, reason: 'notification-open'));
+      });
+    }
   }
 
   @override
@@ -242,7 +253,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Módulo de cuentas de cobro por servicios: borrador editable y emisión de documento.',
+            'Módulo de cuentas de cobro por servicios: estado pendiente editable y emisión de documento.',
             style: TextStyle(color: Color(0xFFE2E8F0), height: 1.45),
           ),
           const SizedBox(height: 18),
@@ -255,7 +266,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
                     runSpacing: 12,
                     children: [
                       _buildHeroMetric('Total', '${stats.total}'),
-                      _buildHeroMetric('Borrador', '${stats.borrador}'),
+                      _buildHeroMetric('Pendiente', '${stats.pendiente}'),
                       _buildHeroMetric('Emitida', '${stats.emitida}'),
                       _buildHeroMetric('Anulada', '${stats.anulada}'),
                     ],
@@ -271,29 +282,52 @@ class _FacturasScreenState extends State<FacturasScreen> {
           else ...[
             _buildPrimaryAction(),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _buildHeroMetric('Total', '${stats.total}', compact: true),
-                _buildHeroMetric(
-                  'Borrador',
-                  '${stats.borrador}',
-                  compact: true,
-                ),
-                _buildHeroMetric('Emitida', '${stats.emitida}', compact: true),
-                _buildHeroMetric('Anulada', '${stats.anulada}', compact: true),
-              ],
-            ),
+            _buildMobileHeroMetricsGrid(stats),
           ],
         ],
       ),
     );
   }
 
+  Widget _buildMobileHeroMetricsGrid(FacturasStats stats) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildHeroMetric('Total', '${stats.total}', compact: true),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildHeroMetric(
+                'Pendiente',
+                '${stats.pendiente}',
+                compact: true,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child:
+                  _buildHeroMetric('Emitida', '${stats.emitida}', compact: true),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child:
+                  _buildHeroMetric('Anulada', '${stats.anulada}', compact: true),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildHeroMetric(String label, String value, {bool compact = false}) {
     return Container(
-      width: compact ? 145 : 160,
+      width: compact ? null : 160,
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 14 : 16,
         vertical: compact ? 12 : 14,
@@ -460,7 +494,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
       value: _query.estado.isEmpty ? '__all__' : _query.estado,
       items: const [
         DropdownMenuItem(value: '__all__', child: Text('Todos')),
-        DropdownMenuItem(value: 'borrador', child: Text('Borrador')),
+        DropdownMenuItem(value: 'pendiente', child: Text('Pendiente')),
         DropdownMenuItem(value: 'emitida', child: Text('Emitida')),
         DropdownMenuItem(value: 'anulada', child: Text('Anulada')),
       ],
@@ -753,7 +787,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
   List<Widget> _buildActionButtons(Factura factura, {required bool compact}) {
     final canEditar = _canEdit && factura.isBorrador;
     final canEmitir = _canEdit && factura.isBorrador;
-    final canAnular = _canEdit && (factura.isBorrador || factura.isEmitida);
+    final canAnular = _canEdit && factura.isBorrador;
 
     final textStyle = TextStyle(
       fontWeight: FontWeight.w700,
@@ -810,7 +844,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
     final label = switch (normalized) {
       'emitida' => 'Emitida',
       'anulada' => 'Anulada',
-      _ => 'Borrador',
+      _ => 'Pendiente',
     };
 
     return Container(
@@ -919,6 +953,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
         builder: (_) => FacturaFormScreen(
           controller: _controller,
           canEditFacturacion: _canEdit,
+          canEditFirma: _canEditFirma,
           defaultFirmaPath: widget.authController.defaultFirmaPath,
           defaultFirmaNombre: widget.authController.defaultFirmaNombre,
           defaultFirmaCargo: widget.authController.defaultFirmaCargo,
@@ -971,6 +1006,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
         builder: (_) => FacturaFormScreen(
           controller: _controller,
           canEditFacturacion: _canEdit,
+          canEditFirma: _canEditFirma,
           initialFactura: factura,
           readOnly: false,
           defaultFirmaPath: widget.authController.defaultFirmaPath,
@@ -1019,6 +1055,12 @@ class _FacturasScreenState extends State<FacturasScreen> {
       }
 
       _showSnack('Factura ${updated.codigo} emitida correctamente.');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnack(error.message, isError: true);
     } catch (error) {
       if (!mounted) {
         return;
@@ -1032,7 +1074,7 @@ class _FacturasScreenState extends State<FacturasScreen> {
     final confirmed = await _confirmDialog(
       title: 'Anular factura',
       message:
-          'La factura cambiará a anulada. Esta acción no se puede deshacer. ¿Deseas continuar?',
+          'La factura pasará a anulada y dejará de estar disponible para emisión. ¿Deseas continuar?',
       confirmText: 'Anular',
       confirmColor: _rose600,
     );
@@ -1048,6 +1090,12 @@ class _FacturasScreenState extends State<FacturasScreen> {
       }
 
       _showSnack('Factura ${updated.codigo} anulada correctamente.');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showSnack(error.message, isError: true);
     } catch (error) {
       if (!mounted) {
         return;

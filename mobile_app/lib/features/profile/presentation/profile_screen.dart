@@ -33,6 +33,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _savingEmail = false;
   bool _savingPhone = false;
   bool _savingPassword = false;
+  bool _obscureEmailCurrentPassword = true;
+  bool _obscurePhoneCurrentPassword = true;
+  bool _obscurePasswordCurrent = true;
+  bool _obscurePasswordNew = true;
+  bool _obscurePasswordConfirm = true;
   String? _emailError;
   String? _phoneError;
   String? _passwordError;
@@ -119,10 +124,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 10),
           TextField(
             controller: _emailCurrentPasswordController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: _obscureEmailCurrentPassword,
+            decoration: InputDecoration(
               labelText: 'Contraseña actual',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscureEmailCurrentPassword =
+                        !_obscureEmailCurrentPassword;
+                  });
+                },
+                icon: Icon(
+                  _obscureEmailCurrentPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                tooltip: _obscureEmailCurrentPassword
+                    ? 'Mostrar contraseña'
+                    : 'Ocultar contraseña',
+              ),
             ),
           ),
           if (_emailError != null) ...[
@@ -172,10 +193,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 10),
           TextField(
             controller: _phoneCurrentPasswordController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: _obscurePhoneCurrentPassword,
+            decoration: InputDecoration(
               labelText: 'Contraseña actual',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscurePhoneCurrentPassword =
+                        !_obscurePhoneCurrentPassword;
+                  });
+                },
+                icon: Icon(
+                  _obscurePhoneCurrentPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                tooltip: _obscurePhoneCurrentPassword
+                    ? 'Mostrar contraseña'
+                    : 'Ocultar contraseña',
+              ),
             ),
           ),
           if (_phoneError != null) ...[
@@ -216,28 +253,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           TextField(
             controller: _passwordCurrentController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: _obscurePasswordCurrent,
+            decoration: InputDecoration(
               labelText: 'Contraseña actual',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscurePasswordCurrent = !_obscurePasswordCurrent;
+                  });
+                },
+                icon: Icon(
+                  _obscurePasswordCurrent
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                tooltip: _obscurePasswordCurrent
+                    ? 'Mostrar contraseña'
+                    : 'Ocultar contraseña',
+              ),
             ),
           ),
           const SizedBox(height: 10),
           TextField(
             controller: _passwordNewController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: _obscurePasswordNew,
+            decoration: InputDecoration(
               labelText: 'Nueva contraseña',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscurePasswordNew = !_obscurePasswordNew;
+                  });
+                },
+                icon: Icon(
+                  _obscurePasswordNew
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                tooltip: _obscurePasswordNew
+                    ? 'Mostrar contraseña'
+                    : 'Ocultar contraseña',
+              ),
             ),
           ),
           const SizedBox(height: 10),
           TextField(
             controller: _passwordConfirmController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: _obscurePasswordConfirm,
+            decoration: InputDecoration(
               labelText: 'Confirmar nueva contraseña',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscurePasswordConfirm = !_obscurePasswordConfirm;
+                  });
+                },
+                icon: Icon(
+                  _obscurePasswordConfirm
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                tooltip: _obscurePasswordConfirm
+                    ? 'Mostrar contraseña'
+                    : 'Ocultar contraseña',
+              ),
             ),
           ),
           if (_passwordError != null) ...[

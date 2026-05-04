@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_controller.dart';
+import '../../../core/notifications/in_app_notification.dart';
+import '../../../core/notifications/notifications_repository.dart';
 import '../../dashboard/presentation/dashboard_overview.dart';
 import '../../cotizaciones/presentation/cotizaciones_screen.dart';
 import '../../facturas/presentation/facturas_screen.dart';
@@ -16,6 +21,8 @@ enum DesktopModule {
   facturas,
   perfil,
 }
+
+enum _NotificationCategory { all, facturas, cotizaciones, stock }
 
 class DesktopShellScreen extends StatefulWidget {
   const DesktopShellScreen({
@@ -43,11 +50,22 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
 
   late DesktopModule _selectedModule;
   bool _isSidebarOpen = false;
+  int _contentVersion = 0;
+  List<InAppNotification> _notifications = const [];
+  int _unreadNotifications = 0;
+  bool _loadingNotifications = false;
+  String? _pendingCotizacionSearch;
+  String? _pendingFacturaSearch;
+  late final NotificationsRepository _notificationsRepository;
 
   @override
   void initState() {
     super.initState();
     _selectedModule = widget.initialModule;
+    _notificationsRepository = NotificationsRepository(
+      ApiClient(token: widget.authController.token),
+    );
+    unawaited(_loadNotifications());
   }
 
   @override
@@ -65,7 +83,7 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
                 child: ColoredBox(
                   color: _slate100,
                   child: KeyedSubtree(
-                    key: ValueKey(_selectedModule),
+                    key: ValueKey('${_selectedModule.name}-$_contentVersion'),
                     child: config.content,
                   ),
                 ),
@@ -322,19 +340,75 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: _slate100,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              'Sesion: ${widget.authController.userName ?? 'Usuario'}',
-              style: const TextStyle(
-                color: _slate700,
-                fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              IconButton(
+                onPressed: _loadingNotifications ? null : _openNotificationsSheet,
+                tooltip: 'Notificaciones',
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications_none_rounded,
+                        color: _slate700, size: 26),
+                    if (_unreadNotifications > 0)
+                      Positioned(
+                        right: -3,
+                        top: -5,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 16),
+                          height: 16,
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEF4444),
+                            borderRadius: BorderRadius.all(Radius.circular(999)),
+                          ),
+                          child: Center(
+                            child: Text(
+                              _unreadNotifications > 99
+                                  ? '99+'
+                                  : '$_unreadNotifications',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    widget.authController.userName ?? 'Admin Tesla',
+                    style: const TextStyle(
+                      color: _navy,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Text(
+                    'Administrador',
+                    style: TextStyle(
+                      color: _slate500,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF16A34A),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -346,8 +420,7 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
       case DesktopModule.dashboard:
         return _DesktopModuleConfig(
           title: 'Dashboard',
-          subtitle:
-              'Resumen general para escritorio con acceso rapido a los modulos principales.',
+          subtitle: 'Resumen general de tu negocio en tiempo real.',
           content: _DesktopDashboardOverview(
             authController: widget.authController,
             onSelectModule: (nextModule) {
@@ -376,6 +449,8 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
           ),
         );
       case DesktopModule.cotizaciones:
+        final initialSearch = _pendingCotizacionSearch;
+        _pendingCotizacionSearch = null;
         return _DesktopModuleConfig(
           title: 'Cotizaciones',
           subtitle:
@@ -383,9 +458,12 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
           content: CotizacionesScreen(
             authController: widget.authController,
             embedded: true,
+            initialSearch: initialSearch,
           ),
         );
       case DesktopModule.facturas:
+        final initialSearch = _pendingFacturaSearch;
+        _pendingFacturaSearch = null;
         return _DesktopModuleConfig(
           title: 'Facturas',
           subtitle:
@@ -393,6 +471,7 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
           content: FacturasScreen(
             authController: widget.authController,
             embedded: true,
+            initialSearch: initialSearch,
           ),
         );
       case DesktopModule.perfil:
@@ -410,6 +489,278 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
   void _toggleSidebar() {
     setState(() => _isSidebarOpen = !_isSidebarOpen);
   }
+
+  Future<void> _loadNotifications() async {
+    setState(() => _loadingNotifications = true);
+    try {
+      final feed = await _notificationsRepository.fetchNotifications(limit: 30);
+      if (!mounted) return;
+      setState(() {
+        _notifications = feed.items;
+        _unreadNotifications = feed.unreadCount;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingNotifications = false);
+      }
+    }
+  }
+
+  Future<void> _openNotificationsSheet() async {
+    await _loadNotifications();
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) {
+        var selectedCategory = _NotificationCategory.all;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = _notifications
+                .where((n) => _matchesNotificationCategory(n, selectedCategory))
+                .toList();
+            final allCount =
+                _countForCategory(_NotificationCategory.all, unreadOnly: true);
+            final facturasCount =
+                _countForCategory(_NotificationCategory.facturas, unreadOnly: true);
+            final cotizacionesCount =
+                _countForCategory(_NotificationCategory.cotizaciones, unreadOnly: true);
+            final stockCount =
+                _countForCategory(_NotificationCategory.stock, unreadOnly: true);
+
+            return SizedBox(
+              height: 500,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Notificaciones',
+                          style: TextStyle(
+                            color: _navy,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '$_unreadNotifications sin leer',
+                          style: const TextStyle(color: _slate500),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _categoryChip(
+                          label: 'Todas ($allCount)',
+                          selected: selectedCategory == _NotificationCategory.all,
+                          onTap: () => setModalState(
+                            () => selectedCategory = _NotificationCategory.all,
+                          ),
+                        ),
+                        _categoryChip(
+                          label: 'Facturas ($facturasCount)',
+                          selected: selectedCategory ==
+                              _NotificationCategory.facturas,
+                          onTap: () => setModalState(
+                            () =>
+                                selectedCategory = _NotificationCategory.facturas,
+                          ),
+                        ),
+                        _categoryChip(
+                          label: 'Cotizaciones ($cotizacionesCount)',
+                          selected: selectedCategory ==
+                              _NotificationCategory.cotizaciones,
+                          onTap: () => setModalState(
+                            () => selectedCategory =
+                                _NotificationCategory.cotizaciones,
+                          ),
+                        ),
+                        _categoryChip(
+                          label: 'Stock ($stockCount)',
+                          selected: selectedCategory == _NotificationCategory.stock,
+                          onTap: () => setModalState(
+                            () => selectedCategory = _NotificationCategory.stock,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No hay notificaciones en esta sección.',
+                                style: TextStyle(color: _slate500),
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(height: 1, color: _slate200),
+                              itemBuilder: (context, index) {
+                                final notification = filtered[index];
+                                return ListTile(
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  leading: Icon(
+                                    _iconForNotification(notification),
+                                    color: _navySoft,
+                                  ),
+                                  title: Text(
+                                    notification.title,
+                                    style: TextStyle(
+                                      color: _navy,
+                                      fontWeight: notification.isRead
+                                          ? FontWeight.w600
+                                          : FontWeight.w800,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    notification.body,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: TextButton(
+                                    onPressed: () async {
+                                      Navigator.of(context).pop();
+                                      await _openNotification(notification);
+                                    },
+                                    child: const Text('Ver'),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _categoryChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+    );
+  }
+
+  bool _isStockNotification(InAppNotification notification) {
+    final event = notification.event.trim().toLowerCase();
+    final resourceType = notification.resourceType.trim().toLowerCase();
+    return event == 'producto.stock_zero' || resourceType == 'producto';
+  }
+
+  bool _matchesNotificationCategory(
+    InAppNotification notification,
+    _NotificationCategory category,
+  ) {
+    final resourceType = notification.resourceType.trim().toLowerCase();
+    return switch (category) {
+      _NotificationCategory.all => true,
+      _NotificationCategory.facturas => resourceType == 'factura',
+      _NotificationCategory.cotizaciones => resourceType == 'cotizacion',
+      _NotificationCategory.stock => _isStockNotification(notification),
+    };
+  }
+
+  IconData _iconForNotification(InAppNotification notification) {
+    final resourceType = notification.resourceType.trim().toLowerCase();
+    if (_isStockNotification(notification)) {
+      return Icons.inventory_2_outlined;
+    }
+    if (resourceType == 'factura') {
+      return Icons.receipt_long_outlined;
+    }
+    return Icons.request_quote_outlined;
+  }
+
+  int _countForCategory(
+    _NotificationCategory category, {
+    bool unreadOnly = false,
+  }) {
+    return _notifications
+        .where((n) {
+          if (!_matchesNotificationCategory(n, category)) {
+            return false;
+          }
+          if (unreadOnly && n.isRead) {
+            return false;
+          }
+          return true;
+        })
+        .length;
+  }
+
+  Future<void> _openNotification(InAppNotification notification) async {
+    final wasUnread = !notification.isRead;
+    try {
+      if (wasUnread) {
+        await _notificationsRepository.markRead(notification.id);
+      }
+    } catch (_) {
+      // El fallo de marcado no debe bloquear la navegación.
+    }
+
+    final resourceType = notification.resourceType.trim().toLowerCase();
+    final codigo = notification.codigo.trim();
+    final fallback = notification.resourceId?.toString() ?? '';
+    final search = codigo.isNotEmpty ? codigo : fallback;
+
+    if (resourceType == 'cotizacion') {
+      setState(() {
+        _pendingCotizacionSearch = search;
+        _selectedModule = DesktopModule.cotizaciones;
+        _contentVersion += 1;
+        if (wasUnread) {
+          _unreadNotifications = (_unreadNotifications - 1).clamp(0, 9999);
+        }
+      });
+      return;
+    }
+
+    if (resourceType == 'factura') {
+      setState(() {
+        _pendingFacturaSearch = search;
+        _selectedModule = DesktopModule.facturas;
+        _contentVersion += 1;
+        if (wasUnread) {
+          _unreadNotifications = (_unreadNotifications - 1).clamp(0, 9999);
+        }
+      });
+      return;
+    }
+
+    if (_isStockNotification(notification)) {
+      setState(() {
+        _selectedModule = DesktopModule.productos;
+        _contentVersion += 1;
+        if (wasUnread) {
+          _unreadNotifications = (_unreadNotifications - 1).clamp(0, 9999);
+        }
+      });
+    }
+  }
 }
 
 class _DesktopDashboardOverview extends StatelessWidget {
@@ -425,6 +776,7 @@ class _DesktopDashboardOverview extends StatelessWidget {
   Widget build(BuildContext context) {
     return DashboardOverview(
       authController: authController,
+      showHeader: false,
       onOpenProductos: () => onSelectModule(DesktopModule.productos),
       onOpenServicios: () => onSelectModule(DesktopModule.servicios),
       onOpenCotizaciones: () => onSelectModule(DesktopModule.cotizaciones),

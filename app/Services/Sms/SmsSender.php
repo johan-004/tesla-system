@@ -5,6 +5,7 @@ namespace App\Services\Sms;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 class SmsSender
 {
@@ -32,7 +33,8 @@ class SmsSender
     {
         $sid = (string) config('sms.twilio.sid');
         $token = (string) config('sms.twilio.token');
-        $from = (string) config('sms.twilio.from');
+        $from = $this->normalizeTwilioPhone((string) config('sms.twilio.from'));
+        $to = $this->normalizeTwilioPhone($phone);
 
         if ($sid === '' || $token === '' || $from === '') {
             throw new RuntimeException('Twilio no está configurado correctamente.');
@@ -42,12 +44,66 @@ class SmsSender
             ->withBasicAuth($sid, $token)
             ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", [
                 'From' => $from,
-                'To' => $phone,
+                'To' => $to,
                 'Body' => $message,
             ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException('No fue posible enviar el SMS de recuperación.');
+            $detail = $this->extractTwilioErrorDetail($response->json());
+
+            Log::warning('Twilio rechazó el SMS', [
+                'to' => $this->maskPhone($to),
+                'status' => $response->status(),
+                'detail' => $detail,
+            ]);
+
+            throw new RuntimeException('No fue posible enviar el SMS de recuperación: '.$detail);
+        }
+    }
+
+    private function normalizeTwilioPhone(string $phone): string
+    {
+        $trimmed = trim($phone);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
+        if ($digits === '') {
+            return $trimmed;
+        }
+
+        if (str_starts_with($trimmed, '+')) {
+            return '+'.$digits;
+        }
+
+        // Entrada local colombiana (10 dígitos) desde el formulario.
+        if (strlen($digits) === 10) {
+            return '+57'.$digits;
+        }
+
+        // Si ya viene con indicativo sin prefijo "+", lo forzamos a E.164.
+        return '+'.$digits;
+    }
+
+    /**
+     * @param mixed $payload
+     */
+    private function extractTwilioErrorDetail($payload): string
+    {
+        try {
+            if (! is_array($payload)) {
+                return 'respuesta no detallada de Twilio';
+            }
+
+            $message = isset($payload['message']) && is_string($payload['message'])
+                ? trim($payload['message'])
+                : 'error desconocido';
+            $code = isset($payload['code']) ? (string) $payload['code'] : 'N/A';
+
+            return "Twilio code {$code}: {$message}";
+        } catch (Throwable) {
+            return 'error no parseable de Twilio';
         }
     }
 

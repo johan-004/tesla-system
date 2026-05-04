@@ -50,7 +50,10 @@ class CotizacionResource extends JsonResource
                     return [
                         'id' => $detalle->id,
                         'item' => $index + 1,
+                        'tipo_item' => $detalle->categoria === 'producto' ? 'producto' : 'servicio',
                         'servicio_id' => $detalle->servicio_id,
+                        'producto_id' => $detalle->producto_id,
+                        'codigo' => $detalle->codigo,
                         'categoria' => $detalle->categoria,
                         'descripcion' => $detalle->descripcion,
                         'unidad' => $detalle->unidad,

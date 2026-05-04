@@ -20,10 +20,13 @@ class ProductoController extends Controller
         $perPage = max(1, min((int) $request->get('per_page', 10), 50));
         $buscar = trim((string) $request->get('buscar', ''));
         $activo = $request->get('activo');
+        $categoriaId = $request->get('categoria_id');
 
         $productos = Producto::query()
+            ->with('categoria')
             ->buscar($buscar)
             ->when($activo !== null && $activo !== '', fn ($query) => $query->where('activo', filter_var($activo, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)))
+            ->when($categoriaId !== null && $categoriaId !== '', fn ($query) => $query->where('categoria_id', (int) $categoriaId))
             ->orderBy($orden, $direccion)
             ->paginate($perPage)
             ->appends($request->query());
@@ -33,6 +36,7 @@ class ProductoController extends Controller
             'filters' => [
                 'buscar' => $buscar,
                 'activo' => $activo,
+                'categoria_id' => $categoriaId,
                 'orden' => $orden,
                 'direccion' => $direccion,
                 'per_page' => $perPage,
@@ -53,6 +57,7 @@ class ProductoController extends Controller
         }
 
         $productos = Producto::query()
+            ->with('categoria')
             ->sugerencias($buscar, $limite)
             ->get();
 
@@ -71,7 +76,7 @@ class ProductoController extends Controller
 
         return response()->json([
             'message' => 'Producto creado correctamente.',
-            'data' => new ProductoResource($producto),
+            'data' => new ProductoResource($producto->fresh('categoria')),
         ], 201);
     }
 
@@ -79,7 +84,7 @@ class ProductoController extends Controller
     {
         return response()->json([
             'message' => 'Producto obtenido correctamente.',
-            'data' => new ProductoResource($producto),
+            'data' => new ProductoResource($producto->load('categoria')),
         ]);
     }
 
@@ -89,7 +94,7 @@ class ProductoController extends Controller
 
         return response()->json([
             'message' => 'Producto actualizado correctamente.',
-            'data' => new ProductoResource($producto->fresh()),
+            'data' => new ProductoResource($producto->fresh('categoria')),
         ]);
     }
 
@@ -101,7 +106,7 @@ class ProductoController extends Controller
 
         return response()->json([
             'message' => 'Producto inactivado correctamente.',
-            'data' => new ProductoResource($producto->fresh()),
+            'data' => new ProductoResource($producto->fresh('categoria')),
         ]);
     }
 
@@ -113,7 +118,7 @@ class ProductoController extends Controller
 
         return response()->json([
             'message' => $producto->activo ? 'Producto activado correctamente.' : 'Producto inactivado correctamente.',
-            'data' => new ProductoResource($producto->fresh()),
+            'data' => new ProductoResource($producto->fresh('categoria')),
         ]);
     }
 }

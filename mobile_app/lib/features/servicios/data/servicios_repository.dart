@@ -18,27 +18,31 @@ class ServiciosRepository {
   }
 
   Future<List<String>> fetchCategorias() async {
-    final response = await _apiClient.get('/categorias-servicio?per_page=50');
+    final response = await _apiClient.get('/categorias-servicio?per_page=200');
     final rawItems = response['data'];
 
     if (rawItems is! List) {
-      return suggestedServiceCategories;
+      return const [];
     }
 
     final categories = rawItems
         .whereType<Map>()
         .map((item) => normalizeServiceCategory(item['nombre']?.toString()))
-        .where(suggestedServiceCategories.contains)
         .where((value) => value.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
 
-    if (categories.isEmpty) {
-      return suggestedServiceCategories;
-    }
-
     return categories;
+  }
+
+  Future<String> createCategoria(String nombre) async {
+    final response = await _apiClient.post('/categorias-servicio', {
+      'nombre': normalizeServiceCategory(nombre),
+      'activo': true,
+    });
+    final data = response['data'] as Map<String, dynamic>? ?? const {};
+    return normalizeServiceCategory(data['nombre']?.toString());
   }
 
   Future<Servicio> createServicio(Map<String, dynamic> payload) async {

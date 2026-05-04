@@ -25,6 +25,7 @@ class ProductosController extends ChangeNotifier {
   Timer? _pollingTimer;
   ProductosQuery? _queuedQuery;
   bool _refreshQueued = false;
+  bool _pollingPaused = false;
   int _suggestionRequestId = 0;
   int _refreshRequestId = 0;
   bool _isDisposed = false;
@@ -131,6 +132,14 @@ class ProductosController extends ChangeNotifier {
       query: _state.query.copyWith(direccion: direccion, page: 1),
       reason: 'sort-direction',
     );
+  }
+
+  Future<void> setCategoriaFilter(int? categoriaId) {
+    final nextQuery = categoriaId == null
+        ? _state.query.copyWith(page: 1, clearCategoriaId: true)
+        : _state.query.copyWith(categoriaId: categoriaId, page: 1);
+    _log('filter categoria_id=${categoriaId?.toString() ?? "all"}');
+    return refresh(query: nextQuery, reason: 'filter-categoria');
   }
 
   Future<void> goToPage(int page) {
@@ -322,8 +331,8 @@ class ProductosController extends ChangeNotifier {
   void _startPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(_pollingInterval, (_) {
-      if (_isDisposed || _shouldPauseAutoRefresh()) {
-        if (!_isDisposed && _shouldPauseAutoRefresh()) {
+      if (_isDisposed || _pollingPaused || _shouldPauseAutoRefresh()) {
+        if (!_isDisposed && (_pollingPaused || _shouldPauseAutoRefresh())) {
           _log('polling skipped paused=true');
         }
         return;
@@ -337,6 +346,16 @@ class ProductosController extends ChangeNotifier {
   bool _shouldPauseAutoRefresh() {
     return searchFocusNode.hasFocus &&
         _state.searchText.trim() != _state.query.buscar;
+  }
+
+  void pausePolling() {
+    _pollingPaused = true;
+    _log('polling paused');
+  }
+
+  void resumePolling() {
+    _pollingPaused = false;
+    _log('polling resumed');
   }
 
   void _setSearchText(String value) {
@@ -397,6 +416,7 @@ class ProductosController extends ChangeNotifier {
         left.orden == right.orden &&
         left.direccion == right.direccion &&
         left.activo == right.activo &&
+        left.categoriaId == right.categoriaId &&
         left.perPage == right.perPage;
   }
 

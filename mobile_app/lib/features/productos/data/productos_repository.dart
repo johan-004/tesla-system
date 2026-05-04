@@ -1,6 +1,7 @@
 import '../../../core/api/api_client.dart';
 import 'paginated_productos_response.dart';
 import 'productos_query.dart';
+import '../domain/producto_categoria.dart';
 import '../domain/producto.dart';
 
 class ProductosRepository {
@@ -47,5 +48,21 @@ class ProductosRepository {
     final response = await _apiClient.patch('/productos/$id/toggle-activo', {});
 
     return Producto.fromJson(response['data'] as Map<String, dynamic>);
+  }
+
+  Future<List<ProductoCategoria>> fetchCategorias() async {
+    final response = await _apiClient.get('/producto-categorias');
+    final data = response['data'] as List<dynamic>? ?? const [];
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(ProductoCategoria.fromJson)
+        .toList();
+  }
+
+  Future<ProductoCategoria> createCategoria(String nombre) async {
+    final response = await _apiClient.post('/producto-categorias', {
+      'nombre': nombre.trim(),
+    });
+    return ProductoCategoria.fromJson(response['data'] as Map<String, dynamic>);
   }
 }

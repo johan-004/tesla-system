@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/api/api_client.dart';
@@ -35,7 +37,6 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
 
   late final TextEditingController _codigoController;
   late final TextEditingController _descripcionController;
-  late final TextEditingController _categoriaController;
   late final TextEditingController _unidadController;
   late final TextEditingController _precioUnitarioController;
   late final TextEditingController _ivaController;
@@ -43,7 +44,11 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
   late final TextEditingController _observacionesController;
   bool _activo = true;
   bool _saving = false;
+  bool _loadingCategorias = false;
+  bool _openingCategoriaDialog = false;
   String? _error;
+  List<String> _categorias = const [];
+  String? _selectedCategoria;
 
   bool get _isEditing => widget.servicio != null;
 
@@ -57,8 +62,9 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
     _codigoController = TextEditingController(text: servicio?.codigo ?? '');
     _descripcionController =
         TextEditingController(text: servicio?.descripcion ?? '');
-    _categoriaController =
-        TextEditingController(text: servicio?.categoria ?? 'residencial');
+    _selectedCategoria = normalizeServiceCategory(servicio?.categoria).isEmpty
+        ? null
+        : normalizeServiceCategory(servicio?.categoria);
     _unidadController =
         TextEditingController(text: servicio?.unidad ?? 'servicio');
     _precioUnitarioController = TextEditingController(
@@ -76,13 +82,13 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
     _observacionesController =
         TextEditingController(text: servicio?.observaciones ?? '');
     _activo = servicio?.activo ?? true;
+    unawaited(_loadCategorias());
   }
 
   @override
   void dispose() {
     _codigoController.dispose();
     _descripcionController.dispose();
-    _categoriaController.dispose();
     _unidadController.dispose();
     _precioUnitarioController.dispose();
     _ivaController.dispose();
@@ -308,31 +314,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
           const SizedBox(height: 16),
           _buildLabeledField(
             label: 'Categoria o seccion',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTextField(
-                  controller: _categoriaController,
-                  hintText: 'residencial, comercial...',
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final categoria in suggestedServiceCategories)
-                      ActionChip(
-                        label: Text(categoria),
-                        onPressed: () {
-                          setState(() {
-                            _categoriaController.text = categoria;
-                          });
-                        },
-                      ),
-                  ],
-                ),
-              ],
-            ),
+            child: _buildCategoriaSelector(),
           ),
           const SizedBox(height: 16),
           _buildLabeledField(
@@ -530,6 +512,123 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
     );
   }
 
+  Widget _buildCategoriaSelector() {
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedCategoria,
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('Selecciona una categoria'),
+        ),
+        ..._categorias.map(
+          (categoria) => DropdownMenuItem<String>(
+            value: categoria,
+            child: Text(formatServiceCategoryLabel(categoria)),
+          ),
+        ),
+        const DropdownMenuItem<String>(
+          value: '__crear__',
+          child: Text('+ Crear nueva categoria'),
+        ),
+      ],
+      onChanged: _loadingCategorias
+          ? null
+          : (value) {
+              if (value == '__crear__') {
+                _openCreateCategoriaSheetDeferred();
+                return;
+              }
+              setState(() {
+                _selectedCategoria = value;
+              });
+            },
+      decoration: InputDecoration(
+        hintText: 'Selecciona una categoria',
+        filled: true,
+        fillColor: _slate100,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: _slate300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: _slate300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: _emerald500, width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  void _openCreateCategoriaSheetDeferred() {
+    if (_openingCategoriaDialog) return;
+    _openingCategoriaDialog = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      if (!mounted) {
+        _openingCategoriaDialog = false;
+        return;
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _openCreateCategoriaSheet();
+      _openingCategoriaDialog = false;
+    });
+  }
+
+  Future<void> _loadCategorias() async {
+    setState(() {
+      _loadingCategorias = true;
+    });
+
+    try {
+      final categorias = await widget.repository.fetchCategorias();
+      if (!mounted) return;
+
+      final selected = _selectedCategoria;
+      final categorySet = categorias.toSet();
+      if (selected != null && selected.isNotEmpty) {
+        categorySet.add(selected);
+      }
+
+      final sorted = categorySet.toList()..sort();
+      setState(() {
+        _categorias = sorted;
+        _loadingCategorias = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingCategorias = false;
+      });
+    }
+  }
+
+  Future<void> _openCreateCategoriaSheet() async {
+    final created = await showDialog<String>(
+      context: context,
+      builder: (_) => _CreateServicioCategoriaDialog(
+        repository: widget.repository,
+        existingCategorias: _categorias,
+      ),
+    );
+    if (!mounted || created == null || created.isEmpty) {
+      return;
+    }
+
+    final updatedCategories = {..._categorias, created}.toList()..sort();
+    setState(() {
+      _categorias = updatedCategories;
+      _selectedCategoria = created;
+    });
+  }
+
   Future<void> _save() async {
     final errors = <String>[];
     final rawPrecioUnitario = _precioUnitarioController.text.trim();
@@ -542,7 +641,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
     if (_descripcionController.text.trim().isEmpty) {
       errors.add('La descripcion es obligatoria.');
     }
-    if (_categoriaController.text.trim().isEmpty) {
+    if ((_selectedCategoria ?? '').trim().isEmpty) {
       errors.add('La categoria o seccion es obligatoria.');
     }
     if (_unidadController.text.trim().isEmpty) {
@@ -571,7 +670,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
     final payload = <String, dynamic>{
       'codigo': _codigoController.text.trim(),
       'descripcion': _descripcionController.text.trim(),
-      'categoria': _categoriaController.text.trim(),
+      'categoria': _selectedCategoria!.trim(),
       'unidad': _unidadController.text.trim(),
       'precio_unitario': PriceFormatter.normalize(rawPrecioUnitario),
       'iva': PriceFormatter.normalize(rawIva),
@@ -598,5 +697,135 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
         setState(() => _saving = false);
       }
     }
+  }
+}
+
+class _CreateServicioCategoriaDialog extends StatefulWidget {
+  const _CreateServicioCategoriaDialog({
+    required this.repository,
+    required this.existingCategorias,
+  });
+
+  final ServiciosRepository repository;
+  final List<String> existingCategorias;
+
+  @override
+  State<_CreateServicioCategoriaDialog> createState() =>
+      _CreateServicioCategoriaDialogState();
+}
+
+class _CreateServicioCategoriaDialogState
+    extends State<_CreateServicioCategoriaDialog> {
+  static const _slate900 = Color(0xFF0F172A);
+  static const _slate300 = Color(0xFFCBD5E1);
+  static const _slate100 = Color(0xFFF1F5F9);
+  static const _emerald500 = Color(0xFF10B981);
+
+  final TextEditingController _controller = TextEditingController();
+  String? _localError;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final nombre = normalizeServiceCategory(_controller.text);
+    if (nombre.isEmpty) {
+      setState(() => _localError = 'El nombre de la categoria es obligatorio.');
+      return;
+    }
+
+    if (widget.existingCategorias
+        .map(normalizeServiceCategory)
+        .contains(nombre)) {
+      setState(() => _localError = 'Esa categoria ya existe.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _localError = null;
+    });
+
+    try {
+      final categoria = await widget.repository.createCategoria(nombre);
+      if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.of(context).pop(categoria);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _localError = error.message;
+        _saving = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _localError = 'No fue posible crear la categoria.';
+        _saving = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text(
+        'Nueva categoria',
+        style: TextStyle(
+          color: _slate900,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: false,
+        decoration: InputDecoration(
+          hintText: 'Nombre de la categoria',
+          errorText: _localError,
+          filled: true,
+          fillColor: _slate100,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _slate300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _slate300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _emerald500, width: 1.4),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving
+              ? null
+              : () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  Navigator.of(context).pop();
+                },
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
+    );
   }
 }

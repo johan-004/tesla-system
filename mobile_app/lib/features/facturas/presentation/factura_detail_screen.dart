@@ -49,18 +49,21 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
   static const _ink300 = Color(0xFFD1D5DB);
   static const _ink200 = Color(0xFFE5E7EB);
   static const _background = Color(0xFFF3F4F6);
+  static const _emerald600 = Color(0xFF059669);
+  static const _amber700 = Color(0xFFB45309);
+  static const _rose600 = Color(0xFFE11D48);
 
   late Factura _factura;
   bool _isLoading = false;
   bool _isExportingPdf = false;
   String? _error;
-  Future<Uint8List>? _mobilePreviewImageFuture;
+  late Future<List<Uint8List>> _mobilePreviewImagesFuture;
 
   @override
   void initState() {
     super.initState();
     _factura = widget.factura;
-    _mobilePreviewImageFuture = _buildMobilePreviewImage();
+    _mobilePreviewImagesFuture = _buildMobilePreviewImages();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadDetail());
     });
@@ -79,7 +82,7 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
       if (!mounted) return;
       setState(() {
         _factura = detail;
-        _mobilePreviewImageFuture = _buildMobilePreviewImage();
+        _mobilePreviewImagesFuture = _buildMobilePreviewImages();
       });
     } catch (error) {
       if (!mounted) return;
@@ -93,13 +96,16 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
     return FacturaPdfService.buildPdf(_factura);
   }
 
-  Future<Uint8List> _buildMobilePreviewImage() async {
+  Future<List<Uint8List>> _buildMobilePreviewImages() async {
     final pdfBytes = await _buildFacturaPdfBytes();
-    await for (final page
-        in Printing.raster(pdfBytes, pages: const [0], dpi: 300)) {
-      return page.toPng();
+    final pages = <Uint8List>[];
+    await for (final page in Printing.raster(pdfBytes, dpi: 260)) {
+      pages.add(await page.toPng());
     }
-    throw StateError('No fue posible renderizar la vista de la factura.');
+    if (pages.isEmpty) {
+      throw StateError('No fue posible renderizar la vista de factura.');
+    }
+    return pages;
   }
 
   Future<void> _sharePdf() async {
@@ -200,8 +206,8 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
                   )
                 : Padding(
                     padding: const EdgeInsets.fromLTRB(6, 8, 6, 10),
-                    child: FutureBuilder<Uint8List>(
-                      future: _mobilePreviewImageFuture,
+                    child: FutureBuilder<List<Uint8List>>(
+                      future: _mobilePreviewImagesFuture,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -212,10 +218,13 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
                         if (snapshot.hasError || !snapshot.hasData) {
                           return const Center(
                             child: Text(
-                                'No fue posible cargar la vista de factura.'),
+                              'No fue posible cargar la vista de factura.',
+                              style: TextStyle(color: Colors.white),
+                            ),
                           );
                         }
 
+                        final pages = snapshot.data!;
                         return LayoutBuilder(
                           builder: (context, constraints) {
                             final pageWidth = constraints.maxWidth - 8;
@@ -225,30 +234,41 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
                               panEnabled: true,
                               scaleEnabled: true,
                               constrained: false,
-                              boundaryMargin: const EdgeInsets.all(200),
-                              child: Center(
-                                child: Container(
-                                  width: pageWidth,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Color(0x22000000),
-                                        blurRadius: 10,
-                                        offset: Offset(0, 4),
+                              boundaryMargin: const EdgeInsets.all(220),
+                              child: SizedBox(
+                                width: pageWidth,
+                                child: Column(
+                                  children: [
+                                    for (var i = 0; i < pages.length; i++) ...[
+                                      Container(
+                                        width: pageWidth,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          boxShadow: const [
+                                            BoxShadow(
+                                              color: Color(0x22000000),
+                                              blurRadius: 10,
+                                              offset: Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Image.memory(
+                                            pages[i],
+                                            width: pageWidth,
+                                            fit: BoxFit.fitWidth,
+                                            filterQuality: FilterQuality.high,
+                                          ),
+                                        ),
                                       ),
+                                      if (i < pages.length - 1)
+                                        const SizedBox(height: 14),
                                     ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.memory(
-                                      snapshot.data!,
-                                      width: pageWidth,
-                                      fit: BoxFit.fitWidth,
-                                      filterQuality: FilterQuality.high,
-                                    ),
-                                  ),
+                                  ],
                                 ),
                               ),
                             );
@@ -327,6 +347,11 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: _buildEstadoChip(_factura.estado),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Image.asset(_logoTeslaAsset,
@@ -486,7 +511,10 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
         FacturaItem(
           id: -rows.length,
           facturaId: _factura.id,
+          tipoItem: 'servicio',
           productoId: null,
+          servicioId: null,
+          codigo: '',
           orden: rows.length + 1,
           descripcion: '',
           unidad: '',
@@ -514,17 +542,19 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
               TableBorder.all(color: _ink500.withValues(alpha: 0.5), width: 1),
           columnWidths: const {
             0: FixedColumnWidth(56),
-            1: FlexColumnWidth(4.2),
-            2: FixedColumnWidth(72),
-            3: FixedColumnWidth(72),
-            4: FixedColumnWidth(108),
-            5: FixedColumnWidth(118),
+            1: FixedColumnWidth(84),
+            2: FlexColumnWidth(3.7),
+            3: FixedColumnWidth(68),
+            4: FixedColumnWidth(68),
+            5: FixedColumnWidth(102),
+            6: FixedColumnWidth(118),
           },
           children: [
             TableRow(
               decoration: const BoxDecoration(color: Color(0xFFD6D8DC)),
               children: [
                 _th('Ítem', headingStyle),
+                _th('Código', headingStyle),
                 _th('Descripción', headingStyle),
                 _th('Unid.', headingStyle),
                 _th('Cant.', headingStyle),
@@ -586,6 +616,7 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
     return TableRow(
       children: [
         _td(isEmpty ? '' : '$index', style, align: TextAlign.center),
+        _td(item.codigo, style, align: TextAlign.center),
         _td(item.descripcion, style),
         _td(item.unidad, style, align: TextAlign.center),
         _td(_formatCantidadEntera(item.cantidad), style,
@@ -604,6 +635,38 @@ class _FacturaDetailScreenState extends State<FacturaDetailScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Text(text, style: style, textAlign: TextAlign.center),
       );
+
+  Widget _buildEstadoChip(String estado) {
+    final normalized = estado.trim().toLowerCase();
+    final color = switch (normalized) {
+      'emitida' => _emerald600,
+      'anulada' => _rose600,
+      _ => _amber700,
+    };
+
+    final label = switch (normalized) {
+      'emitida' => 'Emitida',
+      'anulada' => 'Anulada',
+      _ => 'Pendiente',
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        'Estado: $label',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
 
   Widget _td(String text, TextStyle style,
           {TextAlign align = TextAlign.left}) =>

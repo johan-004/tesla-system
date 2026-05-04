@@ -18,6 +18,8 @@ dependencies:
   image: ^4.5.4
   pdf: ^3.11.1
   printing: ^5.13.4
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.10
 
 dev_dependencies:
   flutter_test:
@@ -30,6 +32,12 @@ flutter:
   assets:
     - assets/images/
     - assets/fonts/
+  fonts:
+    - family: TeslaSans
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
 
 flutter_launcher_icons:
   image_path: assets/images/icono_de_aplicacion.png

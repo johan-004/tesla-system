@@ -5,6 +5,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.warn("google-services.json no encontrado en android/app. Firebase Push quedará deshabilitado en este build.")
+}
+
 android {
     namespace = "com.example.tesla_mobile"
     compileSdk = flutter.compileSdkVersion

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/api/api_client.dart';
 import '../../../shared/utils/price_formatter.dart';
 import '../data/productos_repository.dart';
+import '../domain/producto_categoria.dart';
 import '../domain/producto.dart';
 
 class ProductoFormScreen extends StatefulWidget {
@@ -39,6 +40,10 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   late final TextEditingController _ivaPorcentajeController;
   late final TextEditingController _stockController;
   late final TextEditingController _unidadController;
+  List<ProductoCategoria> _categorias = const [];
+  int? _selectedCategoriaId;
+  bool _loadingCategorias = true;
+  bool _openingCategoriaDialog = false;
   bool _activo = true;
   bool _saving = false;
   String? _error;
@@ -66,7 +71,9 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         TextEditingController(text: producto?.stock.toString() ?? '0');
     _unidadController =
         TextEditingController(text: producto?.unidadMedida ?? 'unidad');
+    _selectedCategoriaId = producto?.categoriaId;
     _activo = producto?.activo ?? true;
+    _loadCategorias();
   }
 
   @override
@@ -302,6 +309,11 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          _buildLabeledField(
+            label: 'Categoría',
+            child: _buildCategoriaSelector(),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -487,6 +499,119 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     );
   }
 
+  Widget _buildCategoriaSelector() {
+    if (_loadingCategorias) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: _slate100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _slate300),
+        ),
+        child: const Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 10),
+            Text('Cargando categorías...'),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: _slate100,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _slate300),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          isExpanded: true,
+          value: _selectedCategoriaId,
+          hint: const Text('Selecciona una categoría'),
+          items: [
+            const DropdownMenuItem<int?>(
+              value: null,
+              child: Text('Sin categoría'),
+            ),
+            ..._categorias.map(
+              (categoria) => DropdownMenuItem<int?>(
+                value: categoria.id,
+                child: Text(categoria.nombre),
+              ),
+            ),
+            const DropdownMenuItem<int?>(
+              value: -1,
+              child: Text('+ Crear nueva categoría'),
+            ),
+          ],
+          onChanged: (value) {
+            if (value == -1) {
+              _openCrearCategoriaModalDeferred();
+              return;
+            }
+            setState(() => _selectedCategoriaId = value);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _openCrearCategoriaModalDeferred() {
+    if (_openingCategoriaDialog) return;
+    _openingCategoriaDialog = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      if (!mounted) {
+        _openingCategoriaDialog = false;
+        return;
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _openCrearCategoriaModal();
+      _openingCategoriaDialog = false;
+    });
+  }
+
+  Future<void> _loadCategorias() async {
+    setState(() => _loadingCategorias = true);
+    try {
+      final categorias = await widget.repository.fetchCategorias();
+      if (!mounted) return;
+      setState(() {
+        _categorias = categorias;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'No fue posible cargar las categorías.');
+    } finally {
+      if (mounted) {
+        setState(() => _loadingCategorias = false);
+      }
+    }
+  }
+
+  Future<void> _openCrearCategoriaModal() async {
+    final created = await showDialog<ProductoCategoria>(
+      context: context,
+      builder: (_) => _CreateProductoCategoriaDialog(
+        repository: widget.repository,
+      ),
+    );
+    if (!mounted || created == null) return;
+
+    await _loadCategorias();
+    if (!mounted) return;
+    setState(() => _selectedCategoriaId = created.id);
+  }
+
   Future<void> _save() async {
     final rawPrecio = _precioVentaController.text.trim();
     final rawIva = _ivaPorcentajeController.text.trim();
@@ -522,6 +647,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       'unidad_medida': _unidadController.text.trim().isEmpty
           ? 'unidad'
           : _unidadController.text.trim(),
+      'categoria_id': _selectedCategoriaId,
       'activo': _activo,
     };
 
@@ -541,5 +667,101 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         setState(() => _saving = false);
       }
     }
+  }
+}
+
+class _CreateProductoCategoriaDialog extends StatefulWidget {
+  const _CreateProductoCategoriaDialog({
+    required this.repository,
+  });
+
+  final ProductosRepository repository;
+
+  @override
+  State<_CreateProductoCategoriaDialog> createState() =>
+      _CreateProductoCategoriaDialogState();
+}
+
+class _CreateProductoCategoriaDialogState
+    extends State<_CreateProductoCategoriaDialog> {
+  final TextEditingController _controller = TextEditingController();
+  bool _saving = false;
+  String? _localError;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final nombre = _controller.text.trim();
+    if (nombre.isEmpty) {
+      setState(() => _localError = 'El nombre es obligatorio.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _localError = null;
+    });
+
+    try {
+      final categoria = await widget.repository.createCategoria(nombre);
+      if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.of(context).pop(categoria);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _localError = error.message;
+        _saving = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _localError = 'No fue posible crear la categoría.';
+        _saving = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text(
+        'Nueva categoría',
+        style: TextStyle(fontWeight: FontWeight.w800),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: false,
+        decoration: InputDecoration(
+          hintText: 'Nombre de la categoría',
+          errorText: _localError,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving
+              ? null
+              : () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  Navigator.of(context).pop();
+                },
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
+    );
   }
 }

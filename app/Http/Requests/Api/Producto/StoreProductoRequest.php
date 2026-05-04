@@ -22,6 +22,7 @@ class StoreProductoRequest extends FormRequest
             'iva_porcentaje' => ['nullable', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'unidad_medida' => ['required', 'string', 'max:50'],
+            'categoria_id' => ['nullable', 'integer', 'exists:producto_categorias,id'],
             'activo' => ['nullable', 'boolean'],
         ];
     }
