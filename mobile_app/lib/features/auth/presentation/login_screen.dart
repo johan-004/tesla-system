@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -14,17 +16,35 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController =
-      TextEditingController(text: 'admin@tesla-system.test');
-  final _passwordController = TextEditingController(text: 'password123');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _emailFocusNode = FocusNode(debugLabel: 'login-email');
   final _passwordFocusNode = FocusNode(debugLabel: 'login-password');
   bool _obscureLoginPassword = true;
   bool _loading = false;
+  bool _checkingRecoveryEmail = false;
+  bool _recoveryEmailExists = false;
   String? _error;
+  Timer? _recoveryEmailDebounce;
+  static final RegExp _emailPattern =
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+
+  bool get _canUseRecovery =>
+      !_loading &&
+      !_checkingRecoveryEmail &&
+      _emailPattern.hasMatch(_emailController.text.trim()) &&
+      _recoveryEmailExists;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_onEmailChanged);
+  }
 
   @override
   void dispose() {
+    _emailController.removeListener(_onEmailChanged);
+    _recoveryEmailDebounce?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     _emailFocusNode.dispose();
@@ -152,8 +172,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(height: 10),
+                              if (_checkingRecoveryEmail)
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 6),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
                               TextButton(
-                                onPressed: _openRecoveryOptionsDialog,
+                                onPressed:
+                                    _canUseRecovery ? _openRecoveryOptionsDialog : null,
                                 child: const Text('Olvidé mi contraseña'),
                               ),
                             ],
@@ -171,6 +203,46 @@ class _LoginScreenState extends State<LoginScreen> {
     ),
       ),
     );
+  }
+
+  void _onEmailChanged() {
+    final email = _emailController.text.trim();
+    final hasValidFormat = _emailPattern.hasMatch(email);
+
+    _recoveryEmailDebounce?.cancel();
+
+    if (!hasValidFormat) {
+      if (_checkingRecoveryEmail || _recoveryEmailExists) {
+        setState(() {
+          _checkingRecoveryEmail = false;
+          _recoveryEmailExists = false;
+        });
+      }
+      return;
+    }
+
+    if (!_checkingRecoveryEmail) {
+      setState(() => _checkingRecoveryEmail = true);
+    }
+
+    _recoveryEmailDebounce = Timer(const Duration(milliseconds: 450), () async {
+      try {
+        final exists = await widget.authController.recoveryEmailExists(
+          email: email,
+        );
+        if (!mounted) return;
+        setState(() {
+          _recoveryEmailExists = exists;
+          _checkingRecoveryEmail = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _recoveryEmailExists = false;
+          _checkingRecoveryEmail = false;
+        });
+      }
+    });
   }
 
   Future<void> _submit() async {
@@ -220,16 +292,20 @@ class _LoginScreenState extends State<LoginScreen> {
               child: const Text('Cancelar'),
             ),
             OutlinedButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(dialogContext).pop();
+                await Future<void>.delayed(Duration.zero);
+                if (!mounted) return;
                 _openRecoveryDialog();
               },
               icon: const Icon(Icons.alternate_email_rounded),
               label: const Text('Por correo'),
             ),
             FilledButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(dialogContext).pop();
+                await Future<void>.delayed(Duration.zero);
+                if (!mounted) return;
                 _openSmsRecoveryDialog();
               },
               icon: const Icon(Icons.sms_outlined),
@@ -243,25 +319,41 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _openRecoveryDialog() async {
     final rootContext = context;
-    final emailController = TextEditingController(text: _emailController.text);
+    final emailController = TextEditingController();
+    final codeController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
     String? localError;
-    bool loading = false;
+    bool requesting = false;
+    bool verifyingCode = false;
+    bool resetting = false;
+    bool codeRequested = false;
+    bool codeVerified = false;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (_, setStateDialog) {
-            Future<void> submit() async {
+            void safeSetStateDialog(VoidCallback fn) {
+              if (!dialogContext.mounted) {
+                return;
+              }
+              setStateDialog(fn);
+            }
+
+            Future<void> requestCode() async {
               final email = emailController.text.trim();
               if (email.isEmpty) {
-                setStateDialog(
+                safeSetStateDialog(
                     () => localError = 'Ingresa el correo de la cuenta.');
                 return;
               }
 
-              setStateDialog(() {
-                loading = true;
+              safeSetStateDialog(() {
+                requesting = true;
                 localError = null;
               });
 
@@ -273,68 +365,272 @@ class _LoginScreenState extends State<LoginScreen> {
                     !rootContext.mounted) {
                   return;
                 }
+                ScaffoldMessenger.of(rootContext).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Te enviamos un código de recuperación por correo.',
+                    ),
+                  ),
+                );
+                safeSetStateDialog(() {
+                  codeRequested = true;
+                  codeVerified = false;
+                });
+              } on ApiException catch (error) {
+                safeSetStateDialog(() => localError = error.message);
+              } catch (error) {
+                safeSetStateDialog(() =>
+                    localError = 'No fue posible iniciar recuperación: $error');
+              } finally {
+                safeSetStateDialog(() => requesting = false);
+              }
+            }
+
+            Future<void> resetByEmail() async {
+              final email = emailController.text.trim();
+              final code = codeController.text.trim();
+              final password = newPasswordController.text;
+              final confirmation = confirmPasswordController.text;
+
+              if (email.isEmpty ||
+                  code.isEmpty ||
+                  password.isEmpty ||
+                  confirmation.isEmpty) {
+                safeSetStateDialog(() =>
+                    localError = 'Completa todos los campos para restablecer.');
+                return;
+              }
+
+              if (password != confirmation) {
+                safeSetStateDialog(
+                    () => localError = 'La confirmación no coincide.');
+                return;
+              }
+
+              safeSetStateDialog(() {
+                resetting = true;
+                localError = null;
+              });
+
+              try {
+                await widget.authController.resetPasswordByEmail(
+                  email: email,
+                  code: code,
+                  newPassword: password,
+                  newPasswordConfirmation: confirmation,
+                );
+
+                if (!mounted ||
+                    !dialogContext.mounted ||
+                    !rootContext.mounted) {
+                  return;
+                }
+
                 Navigator.of(dialogContext).pop();
                 ScaffoldMessenger.of(rootContext).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Si el correo existe, enviamos instrucciones de recuperación.',
-                    ),
+                        'Contraseña restablecida por correo. Ya puedes ingresar.'),
                   ),
                 );
               } on ApiException catch (error) {
-                setStateDialog(() => localError = error.message);
+                safeSetStateDialog(() => localError = error.message);
               } catch (error) {
-                setStateDialog(() =>
-                    localError = 'No fue posible iniciar recuperación: $error');
+                safeSetStateDialog(() =>
+                    localError = 'No fue posible restablecer por correo: $error');
               } finally {
-                setStateDialog(() => loading = false);
+                safeSetStateDialog(() => resetting = false);
+              }
+            }
+
+            Future<void> verifyCodeByEmail() async {
+              final email = emailController.text.trim();
+              final code = codeController.text.trim();
+
+              if (email.isEmpty || code.isEmpty) {
+                safeSetStateDialog(
+                  () => localError = 'Ingresa correo y código de 6 dígitos.',
+                );
+                return;
+              }
+
+              safeSetStateDialog(() {
+                verifyingCode = true;
+                localError = null;
+              });
+
+              try {
+                await widget.authController.verifyPasswordRecoveryCode(
+                  email: email,
+                  code: code,
+                );
+                safeSetStateDialog(() {
+                  codeVerified = true;
+                });
+              } on ApiException catch (error) {
+                safeSetStateDialog(() => localError = error.message);
+              } catch (error) {
+                safeSetStateDialog(
+                  () => localError = 'No fue posible validar el código: $error',
+                );
+              } finally {
+                safeSetStateDialog(() => verifyingCode = false);
               }
             }
 
             return AlertDialog(
-              title: const Text('Recuperar contraseña'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Te enviaremos instrucciones al correo registrado de la cuenta.',
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo',
-                      border: OutlineInputBorder(),
+              title: const Text('Recuperación por correo'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      '1) Pide código por correo. 2) Ingresa código y nueva contraseña.',
                     ),
-                  ),
-                  if (localError != null) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        localError!,
-                        style: const TextStyle(color: Colors.red),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Correo',
+                        border: OutlineInputBorder(),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: requesting || resetting ? null : requestCode,
+                        child: requesting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Enviar código por correo'),
+                      ),
+                    ),
+                    if (codeRequested) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: codeController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Código de 6 dígitos',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: requesting || verifyingCode || resetting
+                              ? null
+                              : verifyCodeByEmail,
+                          child: verifyingCode
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Validar código'),
+                        ),
+                      ),
+                    ],
+                    if (codeVerified) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: newPasswordController,
+                        obscureText: obscureNewPassword,
+                        decoration: InputDecoration(
+                          labelText: 'Nueva contraseña',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              safeSetStateDialog(() {
+                                obscureNewPassword = !obscureNewPassword;
+                              });
+                            },
+                            icon: Icon(
+                              obscureNewPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: obscureNewPassword
+                                ? 'Mostrar contraseña'
+                                : 'Ocultar contraseña',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: confirmPasswordController,
+                        obscureText: obscureConfirmPassword,
+                        decoration: InputDecoration(
+                          labelText: 'Confirmar contraseña',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              safeSetStateDialog(() {
+                                obscureConfirmPassword =
+                                    !obscureConfirmPassword;
+                              });
+                            },
+                            icon: Icon(
+                              obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: obscureConfirmPassword
+                                ? 'Mostrar contraseña'
+                                : 'Ocultar contraseña',
+                          ),
+                        ),
+                      ),
+                    ] else if (!codeRequested) ...[
+                      const SizedBox(height: 10),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Primero solicita el código para habilitar el cambio de contraseña.',
+                        ),
+                      ),
+                    ],
+                    if (localError != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          localError!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      loading ? null : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancelar'),
+                  onPressed: requesting || verifyingCode || resetting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cerrar'),
                 ),
                 FilledButton(
-                  onPressed: loading ? null : submit,
-                  child: loading
+                  onPressed: requesting ||
+                          verifyingCode ||
+                          resetting ||
+                          !codeVerified
+                      ? null
+                      : resetByEmail,
+                  child: resetting
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Enviar'),
+                      : const Text('Restablecer'),
                 ),
               ],
             );
@@ -343,7 +639,6 @@ class _LoginScreenState extends State<LoginScreen> {
       },
     );
 
-    emailController.dispose();
   }
 
   Future<void> _openSmsRecoveryDialog() async {
@@ -354,8 +649,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final confirmPasswordController = TextEditingController();
     String? localError;
     bool requesting = false;
+    bool verifyingCode = false;
     bool resetting = false;
     bool codeRequested = false;
+    bool codeVerified = false;
     bool obscureNewPassword = true;
     bool obscureConfirmPassword = true;
 
@@ -401,6 +698,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 );
                 safeSetStateDialog(() {
                   codeRequested = true;
+                  codeVerified = false;
                 });
               } on ApiException catch (error) {
                 safeSetStateDialog(() => localError = error.message);
@@ -468,6 +766,41 @@ class _LoginScreenState extends State<LoginScreen> {
               }
             }
 
+            Future<void> verifyCodeBySms() async {
+              final phone = phoneController.text.trim();
+              final code = codeController.text.trim();
+
+              if (phone.isEmpty || code.isEmpty) {
+                safeSetStateDialog(
+                  () => localError = 'Ingresa teléfono y código de 6 dígitos.',
+                );
+                return;
+              }
+
+              safeSetStateDialog(() {
+                verifyingCode = true;
+                localError = null;
+              });
+
+              try {
+                await widget.authController.verifyPasswordRecoveryCodeBySms(
+                  phone: phone,
+                  code: code,
+                );
+                safeSetStateDialog(() {
+                  codeVerified = true;
+                });
+              } on ApiException catch (error) {
+                safeSetStateDialog(() => localError = error.message);
+              } catch (error) {
+                safeSetStateDialog(
+                  () => localError = 'No fue posible validar el código: $error',
+                );
+              } finally {
+                safeSetStateDialog(() => verifyingCode = false);
+              }
+            }
+
             return AlertDialog(
               title: const Text('Recuperación por SMS'),
               content: SingleChildScrollView(
@@ -511,6 +844,25 @@ class _LoginScreenState extends State<LoginScreen> {
                           border: OutlineInputBorder(),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: requesting || verifyingCode || resetting
+                              ? null
+                              : verifyCodeBySms,
+                          child: verifyingCode
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Validar código'),
+                        ),
+                      ),
+                    ],
+                    if (codeVerified) ...[
                       const SizedBox(height: 10),
                       TextField(
                         controller: newPasswordController,
@@ -520,7 +872,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           border: const OutlineInputBorder(),
                           suffixIcon: IconButton(
                             onPressed: () {
-                              setStateDialog(() {
+                              safeSetStateDialog(() {
                                 obscureNewPassword = !obscureNewPassword;
                               });
                             },
@@ -544,7 +896,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           border: const OutlineInputBorder(),
                           suffixIcon: IconButton(
                             onPressed: () {
-                              setStateDialog(() {
+                              safeSetStateDialog(() {
                                 obscureConfirmPassword =
                                     !obscureConfirmPassword;
                               });
@@ -560,7 +912,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-                    ] else ...[
+                    ] else if (!codeRequested) ...[
                       const SizedBox(height: 10),
                       const Align(
                         alignment: Alignment.centerLeft,
@@ -584,13 +936,16 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: requesting || resetting
+                  onPressed: requesting || verifyingCode || resetting
                       ? null
                       : () => Navigator.of(dialogContext).pop(),
                   child: const Text('Cerrar'),
                 ),
                 FilledButton(
-                  onPressed: requesting || resetting || !codeRequested
+                  onPressed: requesting ||
+                          verifyingCode ||
+                          resetting ||
+                          !codeVerified
                       ? null
                       : resetBySms,
                   child: resetting
@@ -608,9 +963,5 @@ class _LoginScreenState extends State<LoginScreen> {
       },
     );
 
-    phoneController.dispose();
-    codeController.dispose();
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
   }
 }

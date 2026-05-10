@@ -18,6 +18,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const _moduleBlue = Color(0xFF082F49);
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
   final TextEditingController _emailCurrentPasswordController =
@@ -160,6 +161,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: _moduleBlue,
+                foregroundColor: Colors.white,
+              ),
               onPressed: _savingEmail ? null : _submitEmail,
               icon: _savingEmail
                   ? const SizedBox(
@@ -229,6 +234,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: _moduleBlue,
+                foregroundColor: Colors.white,
+              ),
               onPressed: _savingPhone ? null : _submitPhone,
               icon: _savingPhone
                   ? const SizedBox(
@@ -336,6 +345,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: _moduleBlue,
+                foregroundColor: Colors.white,
+              ),
               onPressed: _savingPassword ? null : _submitPassword,
               icon: _savingPassword
                   ? const SizedBox(
@@ -379,8 +392,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Correo actualizado correctamente.')),
+        const SnackBar(
+          content: Text('Te enviamos un código al nuevo correo para confirmar.'),
+        ),
       );
+      await _openEmailConfirmationDialog(email);
     } on ApiException catch (error) {
       setState(() => _emailError = error.message);
     } catch (error) {
@@ -391,6 +407,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _savingEmail = false);
       }
     }
+  }
+
+  Future<void> _openEmailConfirmationDialog(String email) async {
+    final codeController = TextEditingController();
+    String? localError;
+    bool confirming = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (_, setStateDialog) {
+            Future<void> confirm() async {
+              final code = codeController.text.trim();
+              if (code.length != 6) {
+                setStateDialog(
+                    () => localError = 'Ingresa el código de 6 dígitos.');
+                return;
+              }
+
+              setStateDialog(() {
+                confirming = true;
+                localError = null;
+              });
+
+              try {
+                await widget.authController.confirmEmailUpdate(
+                  email: email,
+                  code: code,
+                );
+                if (!mounted || !dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Correo actualizado correctamente.')),
+                );
+              } on ApiException catch (error) {
+                if (!dialogContext.mounted) return;
+                setStateDialog(() {
+                  localError = error.message;
+                });
+              } catch (error) {
+                if (!dialogContext.mounted) return;
+                setStateDialog(() {
+                  localError = 'No fue posible confirmar el correo: $error';
+                });
+              } finally {
+                if (dialogContext.mounted) {
+                  setStateDialog(() {
+                    confirming = false;
+                  });
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Confirmar cambio de correo'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Ingresa el código enviado a $email para guardar el cambio.',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: codeController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Código de verificación',
+                      border: OutlineInputBorder(),
+                      counterText: '',
+                    ),
+                  ),
+                  if (localError != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        localError!,
+                        style: const TextStyle(color: Color(0xFFB91C1C)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      confirming ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: confirming ? null : confirm,
+                  child: confirming
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Confirmar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    codeController.dispose();
   }
 
   Future<void> _submitPassword() async {

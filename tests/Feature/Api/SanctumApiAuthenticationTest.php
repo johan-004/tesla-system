@@ -3,7 +3,7 @@
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\PersonalAccessToken;
 
 test('api login creates independent sanctum tokens for the same user', function () {
@@ -90,6 +90,7 @@ test('api user can update own email with current password', function () {
     $user = User::factory()->create([
         'email' => 'owner@tesla.test',
     ]);
+    Mail::fake();
 
     $login = $this->postJson('/api/v1/auth/login', [
         'email' => $user->email,
@@ -105,9 +106,53 @@ test('api user can update own email with current password', function () {
             'current_password' => 'password',
         ])
         ->assertOk()
+        ->assertJsonPath(
+            'message',
+            'Te enviamos un código al nuevo correo para confirmar el cambio.'
+        );
+
+    DB::table('email_change_codes')
+        ->where('user_id', $user->id)
+        ->where('new_email', 'owner.actualizado@tesla.test')
+        ->update([
+            'code_hash' => Hash::make('123456'),
+        ]);
+
+    $this->withToken($token)
+        ->postJson('/api/v1/auth/email/confirm', [
+            'email' => 'owner.actualizado@tesla.test',
+            'code' => '123456',
+        ])
+        ->assertOk()
         ->assertJsonPath('data.email', 'owner.actualizado@tesla.test');
 
     expect($user->fresh()->email)->toBe('owner.actualizado@tesla.test');
+});
+
+test('api user cannot update own email to an already registered email', function () {
+    $owner = User::factory()->create([
+        'email' => 'owner@tesla.test',
+    ]);
+    $other = User::factory()->create([
+        'email' => 'admin@tesla.test',
+    ]);
+
+    $login = $this->postJson('/api/v1/auth/login', [
+        'email' => $owner->email,
+        'password' => 'password',
+        'device_name' => 'flutter-android',
+    ])->assertOk();
+
+    $this->withToken($login->json('token'))
+        ->patchJson('/api/v1/auth/email', [
+            'email' => 'Admin@Tesla.Test',
+            'current_password' => 'password',
+        ])
+        ->assertOk()
+        ->assertJsonPath('message', 'correo existente ya esta en uso');
+
+    expect($owner->fresh()->email)->toBe('owner@tesla.test');
+    expect($other->fresh()->email)->toBe('admin@tesla.test');
 });
 
 test('api user can update own phone with current password', function () {
@@ -156,11 +201,29 @@ test('api user can update own password with current password', function () {
     expect(Hash::check('new-password-123', $user->fresh()->password))->toBeTrue();
 });
 
-test('api forgot password always returns generic success response', function () {
+test('api forgot password rejects unknown email', function () {
     $this->postJson('/api/v1/auth/forgot-password', [
         'email' => 'inexistente@tesla.test',
+    ])->assertUnprocessable()
+        ->assertJsonPath('message', 'El correo no está registrado en el sistema.');
+});
+
+test('api recovery email exists returns false for unknown email', function () {
+    $this->postJson('/api/v1/auth/recovery-email-exists', [
+        'email' => 'no-existe@tesla.test',
     ])->assertOk()
-        ->assertJsonPath('message', 'Si el correo existe, se enviaron instrucciones de recuperación.');
+        ->assertJsonPath('exists', false);
+});
+
+test('api recovery email exists returns true for registered email', function () {
+    $user = User::factory()->create([
+        'email' => 'existe@tesla.test',
+    ]);
+
+    $this->postJson('/api/v1/auth/recovery-email-exists', [
+        'email' => strtoupper($user->email),
+    ])->assertOk()
+        ->assertJsonPath('exists', true);
 });
 
 test('api can reset password with a valid broker token', function () {
@@ -168,11 +231,21 @@ test('api can reset password with a valid broker token', function () {
         'email' => 'recovery@tesla.test',
     ]);
 
-    $token = Password::broker()->createToken($user);
+    DB::table('password_reset_email_codes')->insert([
+        'user_id' => $user->id,
+        'email' => $user->email,
+        'code_hash' => Hash::make('123456'),
+        'attempts' => 0,
+        'expires_at' => now()->addMinutes(5),
+        'consumed_at' => null,
+        'ip_address' => '127.0.0.1',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
 
     $this->postJson('/api/v1/auth/reset-password', [
-        'token' => $token,
         'email' => $user->email,
+        'code' => '123456',
         'password' => 'safe-new-password-123',
         'password_confirmation' => 'safe-new-password-123',
     ])->assertOk()

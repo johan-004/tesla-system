@@ -400,12 +400,39 @@ class _DesktopShellScreenState extends State<DesktopShellScreen> {
                 ],
               ),
               const SizedBox(width: 10),
-              Container(
-                width: 34,
-                height: 34,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF16A34A),
-                  shape: BoxShape.circle,
+              PopupMenuButton<String>(
+                tooltip: 'Cuenta',
+                onSelected: (value) async {
+                  if (value == 'logout') {
+                    await widget.authController.logout();
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem<String>(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text('Cerrar sesión'),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _slate200),
+                    shape: BoxShape.circle,
+                  ),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/icono_de_login.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
               ),
             ],

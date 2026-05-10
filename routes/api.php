@@ -19,17 +19,25 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:auth-login');
     Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])
         ->middleware('throttle:auth-recovery');
+    Route::post('/auth/recovery-email-exists', [AuthController::class, 'recoveryEmailExists'])
+        ->middleware('throttle:auth-recovery');
     Route::post('/auth/forgot-password-sms', [AuthController::class, 'forgotPasswordSms'])
         ->middleware('throttle:auth-recovery');
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])
         ->middleware('throttle:auth-recovery');
+    Route::post('/auth/verify-reset-code', [AuthController::class, 'verifyResetCode'])
+        ->middleware('throttle:auth-recovery');
     Route::post('/auth/reset-password-sms', [AuthController::class, 'resetPasswordSms'])
+        ->middleware('throttle:auth-recovery');
+    Route::post('/auth/verify-reset-code-sms', [AuthController::class, 'verifyResetCodeSms'])
         ->middleware('throttle:auth-recovery');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::patch('/auth/email', [AuthController::class, 'updateEmail'])
+            ->middleware('throttle:auth-sensitive');
+        Route::post('/auth/email/confirm', [AuthController::class, 'confirmEmailUpdate'])
             ->middleware('throttle:auth-sensitive');
         Route::patch('/auth/phone', [AuthController::class, 'updatePhone'])
             ->middleware('throttle:auth-sensitive');

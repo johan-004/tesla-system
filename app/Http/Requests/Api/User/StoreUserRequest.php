@@ -15,12 +15,21 @@ class StoreUserRequest extends FormRequest
 
     public function rules(): array
     {
+        $emailRule = app()->environment('testing') ? 'email' : 'email:rfc,dns';
+
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', $emailRule, 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:25', 'regex:/^\+?[0-9]{8,15}$/', 'unique:users,phone'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'role' => ['required', 'in:administrador,vendedor'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'email.email' => 'correo no existe',
         ];
     }
 

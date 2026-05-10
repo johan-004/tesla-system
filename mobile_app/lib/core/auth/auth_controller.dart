@@ -214,11 +214,29 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
           'No hay una sesión activa para actualizar el perfil.', 401);
     }
 
-    final response = await ApiClient(token: token, tokenType: tokenType).patch(
+    await ApiClient(token: token, tokenType: tokenType).patch(
       '/auth/email',
       {
         'email': email.trim(),
         'current_password': currentPassword,
+      },
+    );
+  }
+
+  Future<void> confirmEmailUpdate({
+    required String email,
+    required String code,
+  }) async {
+    if (!isAuthenticated) {
+      throw ApiException(
+          'No hay una sesión activa para actualizar el perfil.', 401);
+    }
+
+    final response = await ApiClient(token: token, tokenType: tokenType).post(
+      '/auth/email/confirm',
+      {
+        'email': email.trim(),
+        'code': code.trim(),
       },
     );
 
@@ -303,6 +321,40 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  Future<bool> recoveryEmailExists({
+    required String email,
+  }) async {
+    final response = await ApiClient().post('/auth/recovery-email-exists', {
+      'email': email.trim(),
+    });
+
+    return response['exists'] == true;
+  }
+
+  Future<void> resetPasswordByEmail({
+    required String email,
+    required String code,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    await ApiClient().post('/auth/reset-password', {
+      'email': email.trim(),
+      'code': code.trim(),
+      'password': newPassword,
+      'password_confirmation': newPasswordConfirmation,
+    });
+  }
+
+  Future<void> verifyPasswordRecoveryCode({
+    required String email,
+    required String code,
+  }) async {
+    await ApiClient().post('/auth/verify-reset-code', {
+      'email': email.trim(),
+      'code': code.trim(),
+    });
+  }
+
   Future<void> requestPasswordRecoveryBySms({
     required String phone,
   }) async {
@@ -322,6 +374,16 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
       'code': code.trim(),
       'password': newPassword,
       'password_confirmation': newPasswordConfirmation,
+    });
+  }
+
+  Future<void> verifyPasswordRecoveryCodeBySms({
+    required String phone,
+    required String code,
+  }) async {
+    await ApiClient().post('/auth/verify-reset-code-sms', {
+      'phone': phone.trim(),
+      'code': code.trim(),
     });
   }
 

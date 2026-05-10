@@ -513,6 +513,13 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
   }
 
   Widget _buildCategoriaSelector() {
+    final categoriasDisponibles = {..._categorias};
+    final categoriaSeleccionada = _selectedCategoria;
+    if (categoriaSeleccionada != null && categoriaSeleccionada.isNotEmpty) {
+      categoriasDisponibles.add(categoriaSeleccionada);
+    }
+    final categoriasOrdenadas = categoriasDisponibles.toList()..sort();
+
     return DropdownButtonFormField<String>(
       initialValue: _selectedCategoria,
       isExpanded: true,
@@ -521,7 +528,7 @@ class _ServicioFormScreenState extends State<ServicioFormScreen> {
           value: null,
           child: Text('Selecciona una categoria'),
         ),
-        ..._categorias.map(
+        ...categoriasOrdenadas.map(
           (categoria) => DropdownMenuItem<String>(
             value: categoria,
             child: Text(formatServiceCategoryLabel(categoria)),

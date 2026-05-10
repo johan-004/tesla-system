@@ -76,15 +76,27 @@ test('vendedor can view administrative modules and work in cotizaciones/facturac
 
     $this->postJson('/api/v1/cotizaciones', [
         'cliente_id' => $cliente->id,
-        'codigo' => 'COT-001',
         'fecha' => now()->toDateString(),
+        'ciudad' => 'Bogota',
+        'cliente_nombre' => 'Cliente demo',
+        'referencia' => 'Referencia demo',
+        'subtotal' => 100,
         'total' => 100,
+        'detalles' => [
+            [
+                'descripcion' => 'Servicio demo',
+                'unidad' => 'Un.',
+                'cantidad' => 1,
+                'precio_unitario' => 100,
+                'subtotal' => 100,
+            ],
+        ],
     ])->assertCreated();
 
     $cotizacion = Cotizacion::query()->latest()->firstOrFail();
 
     $this->putJson("/api/v1/cotizaciones/{$cotizacion->id}", [
-        'estado' => 'realizada',
+        'observaciones' => 'Actualizacion permitida para vendedor',
     ])->assertOk();
 
     $this->postJson('/api/v1/facturas', [
@@ -323,11 +335,13 @@ test('administrador has full access', function () {
     ])->assertCreated();
 
     $this->postJson('/api/v1/servicios', [
-        'categoria_servicio_id' => $categoria->id,
         'codigo' => 'SERV-011',
-        'nombre' => 'Servicio nuevo admin',
         'descripcion' => 'Demo',
-        'precio_base' => 450,
+        'categoria' => 'Mantenimiento',
+        'unidad' => 'Un.',
+        'precio_unitario' => 450,
+        'iva' => 0,
+        'precio_con_iva' => 450,
         'activo' => true,
     ])->assertCreated();
 

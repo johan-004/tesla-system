@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Api\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateEmailRequest extends FormRequest
 {
@@ -14,17 +13,30 @@ class UpdateEmailRequest extends FormRequest
 
     public function rules(): array
     {
-        $userId = $this->user()?->id;
+        $emailRule = app()->environment('testing') ? 'email' : 'email:rfc,dns';
 
         return [
             'email' => [
                 'required',
                 'string',
-                'email',
+                $emailRule,
                 'max:255',
-                Rule::unique('users', 'email')->ignore($userId),
             ],
             'current_password' => ['required', 'string', 'current_password'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'email.email' => 'correo no existe',
+        ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'email' => mb_strtolower(trim((string) $this->input('email'))),
+        ]);
     }
 }

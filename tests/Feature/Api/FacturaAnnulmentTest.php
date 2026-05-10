@@ -27,15 +27,13 @@ test('anular factura only affects the selected factura', function () {
         'fecha' => now()->toDateString(),
         'cliente_id' => $cliente->id,
         'cliente_nombre' => $cliente->nombre,
-        'estado' => Factura::ESTADO_EMITIDA,
+        'estado' => Factura::ESTADO_PENDIENTE,
         'subtotal' => 100,
         'iva_total' => 0,
         'impuestos' => 0,
         'total' => 100,
         'created_by' => $admin->id,
         'updated_by' => $admin->id,
-        'emitida_by' => $admin->id,
-        'emitida_at' => now(),
         'user_id' => $admin->id,
     ]);
 
@@ -45,15 +43,13 @@ test('anular factura only affects the selected factura', function () {
         'fecha' => now()->toDateString(),
         'cliente_id' => $cliente->id,
         'cliente_nombre' => $cliente->nombre,
-        'estado' => Factura::ESTADO_EMITIDA,
+        'estado' => Factura::ESTADO_PENDIENTE,
         'subtotal' => 150,
         'iva_total' => 0,
         'impuestos' => 0,
         'total' => 150,
         'created_by' => $admin->id,
         'updated_by' => $admin->id,
-        'emitida_by' => $admin->id,
-        'emitida_at' => now(),
         'user_id' => $admin->id,
     ]);
 
@@ -65,6 +61,5 @@ test('anular factura only affects the selected factura', function () {
         ->assertJsonPath('data.estado', Factura::ESTADO_ANULADA);
 
     expect($facturaA->fresh()->estado)->toBe(Factura::ESTADO_ANULADA);
-    expect($facturaB->fresh()->estado)->toBe(Factura::ESTADO_EMITIDA);
+    expect($facturaB->fresh()->estado)->toBe(Factura::ESTADO_PENDIENTE);
 });
-
