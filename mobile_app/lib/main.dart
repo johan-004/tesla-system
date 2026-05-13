@@ -62,7 +62,7 @@ class _TeslaMobileAppState extends State<TeslaMobileApp> {
       builder: (context, _) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Tesla Mobile',
+          title: 'Tesla-system',
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
               seedColor: const Color(0xFF0F766E),
