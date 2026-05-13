@@ -21,9 +21,16 @@ class SecurityHeaders
         $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
         $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
         $response->headers->set('Content-Security-Policy', "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+
+        if ($request->is('api/v1/auth/*')) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            $response->headers->set('Pragma', 'no-cache');
+            $response->headers->set('Expires', '0');
+        }
 
         if ($request->isSecure()) {
-            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         }
 
         return $response;

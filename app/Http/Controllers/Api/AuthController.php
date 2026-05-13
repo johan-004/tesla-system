@@ -13,11 +13,13 @@ use App\Http\Requests\Api\Auth\UpdatePasswordRequest;
 use App\Http\Requests\Api\Auth\UpdatePhoneRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\Security\SecurityAlertService;
 use App\Services\Sms\SmsSender;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -27,6 +29,7 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly SmsSender $smsSender,
+        private readonly SecurityAlertService $securityAlertService,
     ) {
     }
 
@@ -36,6 +39,13 @@ class AuthController extends Controller
         $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
 
         if (! $user || ! Hash::check((string) $request->string('password'), $user->password)) {
+            Log::channel('security')->warning('api_login_failed', [
+                'email' => $email,
+                'ip' => $request->ip(),
+                'user_agent' => substr((string) $request->userAgent(), 0, 255),
+            ]);
+            $this->securityAlertService->onFailedLogin($request, $email);
+
             return response()->json([
                 'message' => 'Credenciales inválidas.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -51,6 +61,13 @@ class AuthController extends Controller
             $deviceName !== '' ? $deviceName : 'flutter-app',
             $tokenAbilities,
         )->plainTextToken;
+
+        Log::channel('security')->info('api_login_success', [
+            'user_id' => $user->id,
+            'role' => $user->normalizedRole(),
+            'ip' => $request->ip(),
+            'device_name' => $deviceName !== '' ? $deviceName : 'flutter-app',
+        ]);
 
         return response()->json([
             'message' => 'Login exitoso.',
