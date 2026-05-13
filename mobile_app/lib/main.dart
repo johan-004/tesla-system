@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'core/auth/auth_controller.dart';
 import 'core/layout/adaptive_layout.dart';
@@ -29,7 +28,6 @@ class TeslaMobileApp extends StatefulWidget {
 
 class _TeslaMobileAppState extends State<TeslaMobileApp> {
   bool _loading = true;
-  final FocusNode _activityFocusNode = FocusNode(debugLabel: 'activity-root');
 
   @override
   void initState() {
@@ -38,10 +36,7 @@ class _TeslaMobileAppState extends State<TeslaMobileApp> {
   }
 
   @override
-  void dispose() {
-    _activityFocusNode.dispose();
-    super.dispose();
-  }
+  void dispose() => super.dispose();
 
   Future<void> _bootstrap() async {
     final restoreFuture = widget.authController.restoreSession();
@@ -79,64 +74,23 @@ class _TeslaMobileAppState extends State<TeslaMobileApp> {
           ),
           builder: (context, child) {
             final content = child ?? const SizedBox.shrink();
-            final textEditingShortcuts = <ShortcutActivator, Intent>{
-              const SingleActivator(LogicalKeyboardKey.keyA, control: true):
-                  const SelectAllTextIntent(SelectionChangedCause.keyboard),
-              const SingleActivator(LogicalKeyboardKey.keyA, meta: true):
-                  const SelectAllTextIntent(SelectionChangedCause.keyboard),
-              const SingleActivator(LogicalKeyboardKey.keyC, control: true):
-                  CopySelectionTextIntent.copy,
-              const SingleActivator(LogicalKeyboardKey.keyC, meta: true):
-                  CopySelectionTextIntent.copy,
-              const SingleActivator(LogicalKeyboardKey.keyX, control: true):
-                  const CopySelectionTextIntent.cut(
-                    SelectionChangedCause.keyboard,
-                  ),
-              const SingleActivator(LogicalKeyboardKey.keyX, meta: true):
-                  const CopySelectionTextIntent.cut(
-                    SelectionChangedCause.keyboard,
-                  ),
-              const SingleActivator(LogicalKeyboardKey.keyV, control: true):
-                  const PasteTextIntent(SelectionChangedCause.keyboard),
-              const SingleActivator(LogicalKeyboardKey.keyV, meta: true):
-                  const PasteTextIntent(SelectionChangedCause.keyboard),
-            };
-
-            return Shortcuts(
-              shortcuts: <ShortcutActivator, Intent>{
-                ...WidgetsApp.defaultShortcuts,
-                ...textEditingShortcuts,
+            return NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (widget.authController.isAuthenticated) {
+                  widget.authController.registerActivity();
+                }
+                return false;
               },
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  if (widget.authController.isAuthenticated) {
-                    widget.authController.registerActivity();
-                  }
-                  return false;
-                },
-                child: Focus(
-                  focusNode: _activityFocusNode,
-                  autofocus: true,
-                  onKeyEvent: (_, __) {
-                    if (widget.authController.isAuthenticated) {
-                      widget.authController.registerActivity();
-                    }
-                    return KeyEventResult.ignored;
-                  },
-                  child: Listener(
-                    behavior: HitTestBehavior.translucent,
-                    onPointerDown: (_) =>
-                        widget.authController.registerActivity(),
-                    onPointerMove: (_) =>
-                        widget.authController.registerActivity(),
-                    onPointerSignal: (_) =>
-                        widget.authController.registerActivity(),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: widget.authController.registerActivity,
-                      child: content,
-                    ),
-                  ),
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (_) => widget.authController.registerActivity(),
+                onPointerMove: (_) => widget.authController.registerActivity(),
+                onPointerSignal: (_) =>
+                    widget.authController.registerActivity(),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: widget.authController.registerActivity,
+                  child: content,
                 ),
               ),
             );
