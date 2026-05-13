@@ -24,6 +24,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   bool _checkingRecoveryEmail = false;
   bool _recoveryEmailExists = false;
+  bool _checkingInitialAdminStatus = true;
+  bool _canRegisterInitialAdmin = false;
   String? _error;
   Timer? _recoveryEmailDebounce;
   static final RegExp _emailPattern =
@@ -39,6 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _emailController.addListener(_onEmailChanged);
+    _loadInitialAdminStatus();
   }
 
   @override
@@ -188,6 +191,29 @@ class _LoginScreenState extends State<LoginScreen> {
                                     _canUseRecovery ? _openRecoveryOptionsDialog : null,
                                 child: const Text('Olvidé mi contraseña'),
                               ),
+                              if (_checkingInitialAdminStatus)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              else
+                                TextButton.icon(
+                                  onPressed: _canRegisterInitialAdmin
+                                      ? _openInitialAdminRegisterDialog
+                                      : null,
+                                  icon: const Icon(Icons.verified_user_outlined),
+                                  label: Text(
+                                    _canRegisterInitialAdmin
+                                        ? 'Registrarse (Admin)'
+                                        : 'Registro admin cerrado',
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -243,6 +269,333 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     });
+  }
+
+  Future<void> _loadInitialAdminStatus() async {
+    try {
+      final canRegister = await widget.authController.canRegisterInitialAdmin();
+      if (!mounted) return;
+      setState(() {
+        _canRegisterInitialAdmin = canRegister;
+        _checkingInitialAdminStatus = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _checkingInitialAdminStatus = false);
+    }
+  }
+
+  Future<void> _openInitialAdminRegisterDialog() async {
+    final codeController = TextEditingController();
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final phoneController = TextEditingController();
+    final passwordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    var requestingCode = false;
+    var registering = false;
+    var codeValidated = false;
+    String? dialogError;
+    bool obscurePassword = true;
+    bool obscureConfirmPassword = true;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !requestingCode && !registering,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            Future<void> requestCode() async {
+              setStateDialog(() {
+                requestingCode = true;
+                dialogError = null;
+              });
+              try {
+                await widget.authController.requestInitialAdminRegistrationCode();
+              } on ApiException catch (error) {
+                setStateDialog(() => dialogError = error.message);
+              } catch (_) {
+                setStateDialog(() {
+                  dialogError = 'No fue posible solicitar el código.';
+                });
+              } finally {
+                setStateDialog(() => requestingCode = false);
+              }
+            }
+
+            Future<void> validateCode() async {
+              final code = codeController.text.trim();
+              if (code.length != 6) {
+                setStateDialog(() {
+                  dialogError = 'Ingresa el código de 6 dígitos.';
+                });
+                return;
+              }
+
+              setStateDialog(() {
+                registering = true;
+                dialogError = null;
+              });
+
+              try {
+                await widget.authController.verifyInitialAdminRegistrationCode(
+                  code: code,
+                );
+                setStateDialog(() {
+                  codeValidated = true;
+                  dialogError = null;
+                });
+              } on ApiException catch (error) {
+                setStateDialog(() => dialogError = error.message);
+              } catch (_) {
+                setStateDialog(() {
+                  dialogError = 'No fue posible validar el código.';
+                });
+              } finally {
+                setStateDialog(() => registering = false);
+              }
+            }
+
+            Future<void> submitAdminRegistration() async {
+              final name = nameController.text.trim();
+              final email = emailController.text.trim();
+              final phone = phoneController.text.trim();
+              final password = passwordController.text;
+              final confirmPassword = confirmPasswordController.text;
+
+              if (name.isEmpty ||
+                  email.isEmpty ||
+                  phone.isEmpty ||
+                  password.isEmpty ||
+                  confirmPassword.isEmpty) {
+                setStateDialog(() {
+                  dialogError = 'Completa todos los campos.';
+                });
+                return;
+              }
+
+              if (!_emailPattern.hasMatch(email)) {
+                setStateDialog(() {
+                  dialogError = 'Ingresa un correo válido.';
+                });
+                return;
+              }
+
+              if (password.length < 8) {
+                setStateDialog(() {
+                  dialogError = 'La contraseña debe tener al menos 8 caracteres.';
+                });
+                return;
+              }
+
+              if (password != confirmPassword) {
+                setStateDialog(() {
+                  dialogError = 'Las contraseñas no coinciden.';
+                });
+                return;
+              }
+
+              setStateDialog(() {
+                registering = true;
+                dialogError = null;
+              });
+
+              try {
+                await widget.authController.registerInitialAdmin(
+                  code: codeController.text.trim(),
+                  name: name,
+                  email: email,
+                  phone: phone,
+                  password: password,
+                  passwordConfirmation: confirmPassword,
+                );
+                if (!mounted) return;
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop();
+                await _loadInitialAdminStatus();
+                if (!mounted) return;
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Administrador creado correctamente. Ahora inicia sesión.',
+                    ),
+                  ),
+                );
+              } on ApiException catch (error) {
+                setStateDialog(() => dialogError = error.message);
+              } catch (_) {
+                setStateDialog(() {
+                  dialogError = 'No fue posible crear el administrador.';
+                });
+              } finally {
+                setStateDialog(() => registering = false);
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Registro único de administradora'),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Paso 1: solicita el código. Llegará al correo de aprobación configurado.',
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: requestingCode || registering ? null : requestCode,
+                          icon: requestingCode
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.mark_email_unread_outlined),
+                          label: const Text('Enviar código de verificación'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: codeController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        decoration: const InputDecoration(
+                          labelText: 'Código de verificación',
+                          border: OutlineInputBorder(),
+                          counterText: '',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonalIcon(
+                          onPressed: requestingCode || registering ? null : validateCode,
+                          icon: const Icon(Icons.verified_outlined),
+                          label: Text(
+                            codeValidated ? 'Código validado' : 'Validar código',
+                          ),
+                        ),
+                      ),
+                      if (codeValidated) ...[
+                        const SizedBox(height: 18),
+                        const Divider(height: 1),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Paso 2: datos de la cuenta administradora',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre completo',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Correo existente',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Teléfono',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: passwordController,
+                          obscureText: obscurePassword,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              onPressed: () => setStateDialog(
+                                () => obscurePassword = !obscurePassword,
+                              ),
+                              icon: Icon(
+                                obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: confirmPasswordController,
+                          obscureText: obscureConfirmPassword,
+                          decoration: InputDecoration(
+                            labelText: 'Confirmar contraseña',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              onPressed: () => setStateDialog(
+                                () => obscureConfirmPassword = !obscureConfirmPassword,
+                              ),
+                              icon: Icon(
+                                obscureConfirmPassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (dialogError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          dialogError!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: requestingCode || registering
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: !codeValidated || registering ? null : submitAdminRegistration,
+                  child: registering
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Crear cuenta admin'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    codeController.dispose();
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
   }
 
   Future<void> _submit() async {

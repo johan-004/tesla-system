@@ -388,6 +388,41 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  Future<bool> canRegisterInitialAdmin() async {
+    final response = await ApiClient().get('/auth/initial-admin/status');
+    return response['can_register'] == true;
+  }
+
+  Future<void> requestInitialAdminRegistrationCode() async {
+    await ApiClient().post('/auth/initial-admin/request-code', {});
+  }
+
+  Future<void> verifyInitialAdminRegistrationCode({
+    required String code,
+  }) async {
+    await ApiClient().post('/auth/initial-admin/verify-code', {
+      'code': code.trim(),
+    });
+  }
+
+  Future<void> registerInitialAdmin({
+    required String code,
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    await ApiClient().post('/auth/initial-admin/register', {
+      'code': code.trim(),
+      'name': name.trim(),
+      'email': email.trim(),
+      'phone': phone.trim(),
+      'password': password,
+      'password_confirmation': passwordConfirmation,
+    });
+  }
+
   Future<void> _clearLocalSession({bool notify = true}) async {
     _stopInactivityTracking();
     token = null;

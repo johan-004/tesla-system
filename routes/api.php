@@ -31,6 +31,13 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:auth-recovery');
     Route::post('/auth/verify-reset-code-sms', [AuthController::class, 'verifyResetCodeSms'])
         ->middleware('throttle:auth-recovery');
+    Route::get('/auth/initial-admin/status', [AuthController::class, 'initialAdminStatus']);
+    Route::post('/auth/initial-admin/request-code', [AuthController::class, 'requestInitialAdminCode'])
+        ->middleware('throttle:auth-recovery');
+    Route::post('/auth/initial-admin/verify-code', [AuthController::class, 'verifyInitialAdminCode'])
+        ->middleware('throttle:auth-recovery');
+    Route::post('/auth/initial-admin/register', [AuthController::class, 'registerInitialAdmin'])
+        ->middleware('throttle:auth-recovery');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);

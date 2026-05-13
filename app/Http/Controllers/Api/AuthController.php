@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthController extends Controller
@@ -304,6 +305,240 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Te enviamos un código de recuperación al correo registrado.',
+        ]);
+    }
+
+    public function initialAdminStatus()
+    {
+        return response()->json([
+            'can_register' => ! $this->hasAnyAdmin(),
+        ]);
+    }
+
+    public function requestInitialAdminCode(Request $request)
+    {
+        if ($this->hasAnyAdmin()) {
+            return response()->json([
+                'message' => 'Ya existe un administrador. El registro inicial está deshabilitado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $ownerEmail = mb_strtolower(trim((string) config('mail.from.address', '')));
+        $configuredApprover = mb_strtolower(trim((string) env('INITIAL_ADMIN_APPROVER_EMAIL', '')));
+        if ($configuredApprover !== '') {
+            $ownerEmail = $configuredApprover;
+        }
+
+        if ($ownerEmail === '' || ! filter_var($ownerEmail, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'message' => 'No hay un correo de aprobación configurado para el registro inicial.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $code = (string) random_int(100000, 999999);
+
+        DB::table('initial_admin_registration_codes')
+            ->whereRaw('LOWER(recipient_email) = ?', [$ownerEmail])
+            ->whereNull('consumed_at')
+            ->delete();
+
+        DB::table('initial_admin_registration_codes')->insert([
+            'recipient_email' => $ownerEmail,
+            'code_hash' => Hash::make($code),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        try {
+            Mail::raw(
+                "Tesla System: código para crear el primer administrador: {$code}. Expira en 10 minutos.",
+                function ($message) use ($ownerEmail): void {
+                    $message
+                        ->to($ownerEmail)
+                        ->subject('Código de activación admin inicial - Tesla System');
+                }
+            );
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'No fue posible enviar el código de activación.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return response()->json([
+            'message' => 'Código enviado al correo de aprobación.',
+        ]);
+    }
+
+    public function registerInitialAdmin(Request $request)
+    {
+        if ($this->hasAnyAdmin()) {
+            return response()->json([
+                'message' => 'Ya existe un administrador. No se puede crear otro por registro inicial.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $payload = $request->validate([
+            'code' => ['required', 'digits:6'],
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'string', 'email:rfc,dns', 'max:255', Rule::unique('users', 'email')],
+            'phone' => ['required', 'string', 'max:30'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ], [
+            'code.required' => 'El código de verificación es obligatorio.',
+            'code.digits' => 'El código debe tener 6 dígitos.',
+            'name.required' => 'El nombre es obligatorio.',
+            'email.required' => 'El correo es obligatorio.',
+            'email.email' => 'El correo no tiene un formato válido.',
+            'email.unique' => 'El correo ya está registrado.',
+            'phone.required' => 'El teléfono es obligatorio.',
+            'password.required' => 'La contraseña es obligatoria.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed' => 'La confirmación de contraseña no coincide.',
+        ]);
+
+        $ownerEmail = mb_strtolower(trim((string) config('mail.from.address', '')));
+        $configuredApprover = mb_strtolower(trim((string) env('INITIAL_ADMIN_APPROVER_EMAIL', '')));
+        if ($configuredApprover !== '') {
+            $ownerEmail = $configuredApprover;
+        }
+
+        if ($ownerEmail === '' || ! filter_var($ownerEmail, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'message' => 'No hay un correo de aprobación configurado para el registro inicial.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $entry = DB::table('initial_admin_registration_codes')
+            ->whereRaw('LOWER(recipient_email) = ?', [$ownerEmail])
+            ->whereNull('consumed_at')
+            ->where('expires_at', '>', now())
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $entry) {
+            return response()->json([
+                'message' => 'Código inválido o expirado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ((int) $entry->attempts >= 5) {
+            DB::table('initial_admin_registration_codes')
+                ->where('id', $entry->id)
+                ->update([
+                    'consumed_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            return response()->json([
+                'message' => 'Código inválido o expirado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        DB::table('initial_admin_registration_codes')
+            ->where('id', $entry->id)
+            ->update([
+                'attempts' => ((int) $entry->attempts) + 1,
+                'updated_at' => now(),
+            ]);
+
+        if (! Hash::check((string) $payload['code'], (string) $entry->code_hash)) {
+            return response()->json([
+                'message' => 'Código inválido o expirado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $user = User::query()->create([
+            'name' => trim((string) $payload['name']),
+            'email' => mb_strtolower(trim((string) $payload['email'])),
+            'phone' => trim((string) $payload['phone']),
+            'password' => Hash::make((string) $payload['password']),
+            'role' => User::ROLE_ADMINISTRADOR,
+        ]);
+
+        DB::table('initial_admin_registration_codes')
+            ->where('id', $entry->id)
+            ->update([
+                'consumed_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+        return response()->json([
+            'message' => 'Administrador creado correctamente. Ya puedes iniciar sesión.',
+            'data' => new UserResource($user),
+        ], Response::HTTP_CREATED);
+    }
+
+    public function verifyInitialAdminCode(Request $request)
+    {
+        if ($this->hasAnyAdmin()) {
+            return response()->json([
+                'message' => 'Ya existe un administrador. El registro inicial está deshabilitado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $payload = $request->validate([
+            'code' => ['required', 'digits:6'],
+        ], [
+            'code.required' => 'El código de verificación es obligatorio.',
+            'code.digits' => 'El código debe tener 6 dígitos.',
+        ]);
+
+        $ownerEmail = mb_strtolower(trim((string) config('mail.from.address', '')));
+        $configuredApprover = mb_strtolower(trim((string) env('INITIAL_ADMIN_APPROVER_EMAIL', '')));
+        if ($configuredApprover !== '') {
+            $ownerEmail = $configuredApprover;
+        }
+
+        if ($ownerEmail === '' || ! filter_var($ownerEmail, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'message' => 'No hay un correo de aprobación configurado para el registro inicial.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $entry = DB::table('initial_admin_registration_codes')
+            ->whereRaw('LOWER(recipient_email) = ?', [$ownerEmail])
+            ->whereNull('consumed_at')
+            ->where('expires_at', '>', now())
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $entry) {
+            return response()->json([
+                'message' => 'Código inválido o expirado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ((int) $entry->attempts >= 5) {
+            DB::table('initial_admin_registration_codes')
+                ->where('id', $entry->id)
+                ->update([
+                    'consumed_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            return response()->json([
+                'message' => 'Código inválido o expirado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        DB::table('initial_admin_registration_codes')
+            ->where('id', $entry->id)
+            ->update([
+                'attempts' => ((int) $entry->attempts) + 1,
+                'updated_at' => now(),
+            ]);
+
+        if (! Hash::check((string) $payload['code'], (string) $entry->code_hash)) {
+            return response()->json([
+                'message' => 'Código inválido o expirado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return response()->json([
+            'message' => 'Código validado correctamente.',
         ]);
     }
 
@@ -610,5 +845,15 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Código validado correctamente.',
         ]);
+    }
+
+    private function hasAnyAdmin(): bool
+    {
+        return User::query()
+            ->whereIn('role', [
+                User::ROLE_ADMINISTRADOR,
+                User::LEGACY_ROLE_ADMINISTRADORA,
+            ])
+            ->exists();
     }
 }
