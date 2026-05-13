@@ -30,18 +30,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _passwordNewController = TextEditingController();
   final TextEditingController _passwordConfirmController =
       TextEditingController();
+  final TextEditingController _sellerNameController = TextEditingController();
+  final TextEditingController _sellerEmailController = TextEditingController();
+  final TextEditingController _sellerPasswordController =
+      TextEditingController();
+  final TextEditingController _sellerPasswordConfirmController =
+      TextEditingController();
 
   bool _savingEmail = false;
   bool _savingPhone = false;
   bool _savingPassword = false;
+  bool _creatingSeller = false;
   bool _obscureEmailCurrentPassword = true;
   bool _obscurePhoneCurrentPassword = true;
   bool _obscurePasswordCurrent = true;
   bool _obscurePasswordNew = true;
   bool _obscurePasswordConfirm = true;
+  bool _obscureSellerPassword = true;
+  bool _obscureSellerPasswordConfirm = true;
   String? _emailError;
   String? _phoneError;
   String? _passwordError;
+  String? _sellerError;
 
   @override
   void initState() {
@@ -61,6 +71,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _passwordCurrentController.dispose();
     _passwordNewController.dispose();
     _passwordConfirmController.dispose();
+    _sellerNameController.dispose();
+    _sellerEmailController.dispose();
+    _sellerPasswordController.dispose();
+    _sellerPasswordConfirmController.dispose();
     super.dispose();
   }
 
@@ -76,6 +90,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _buildPhoneCard(),
         const SizedBox(height: 14),
         _buildPasswordCard(),
+        if (widget.authController.canCreateUsuarios) ...[
+          const SizedBox(height: 14),
+          _buildCreateSellerCard(),
+        ],
       ],
     );
 
@@ -365,6 +383,105 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildCreateSellerCard() {
+    return _CardShell(
+      title: 'Crear cuenta de vendedor',
+      subtitle: 'Disponible solo para administradores.',
+      child: Column(
+        children: [
+          TextField(
+            controller: _sellerNameController,
+            decoration: const InputDecoration(
+              labelText: 'Nombre completo',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _sellerEmailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Correo del vendedor',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _sellerPasswordController,
+            obscureText: _obscureSellerPassword,
+            decoration: InputDecoration(
+              labelText: 'Contraseña temporal',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscureSellerPassword = !_obscureSellerPassword;
+                  });
+                },
+                icon: Icon(
+                  _obscureSellerPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _sellerPasswordConfirmController,
+            obscureText: _obscureSellerPasswordConfirm,
+            decoration: InputDecoration(
+              labelText: 'Confirmar contraseña',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () {
+                  setState(() {
+                    _obscureSellerPasswordConfirm =
+                        !_obscureSellerPasswordConfirm;
+                  });
+                },
+                icon: Icon(
+                  _obscureSellerPasswordConfirm
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+              ),
+            ),
+          ),
+          if (_sellerError != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _sellerError!,
+                style: const TextStyle(color: Color(0xFFB91C1C)),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: _moduleBlue,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: _creatingSeller ? null : _createSellerUser,
+              icon: _creatingSeller
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Crear vendedor'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitEmail() async {
     FocusScope.of(context).unfocus();
 
@@ -609,6 +726,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } finally {
       if (mounted) {
         setState(() => _savingPhone = false);
+      }
+    }
+  }
+
+  Future<void> _createSellerUser() async {
+    FocusScope.of(context).unfocus();
+
+    final name = _sellerNameController.text.trim();
+    final email = _sellerEmailController.text.trim();
+    final password = _sellerPasswordController.text;
+    final passwordConfirmation = _sellerPasswordConfirmController.text;
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        passwordConfirmation.isEmpty) {
+      setState(() => _sellerError = 'Completa todos los campos del vendedor.');
+      return;
+    }
+
+    if (password != passwordConfirmation) {
+      setState(() => _sellerError = 'La confirmación de contraseña no coincide.');
+      return;
+    }
+
+    setState(() {
+      _creatingSeller = true;
+      _sellerError = null;
+    });
+
+    try {
+      await ApiClient(
+        token: widget.authController.token,
+        tokenType: widget.authController.tokenType,
+      ).post('/usuarios', {
+        'name': name,
+        'email': email,
+        'password': password,
+        'password_confirmation': passwordConfirmation,
+        'role': 'vendedor',
+      });
+
+      _sellerNameController.clear();
+      _sellerEmailController.clear();
+      _sellerPasswordController.clear();
+      _sellerPasswordConfirmController.clear();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cuenta de vendedor creada correctamente.')),
+      );
+    } on ApiException catch (error) {
+      setState(() => _sellerError = error.message);
+    } catch (error) {
+      setState(() => _sellerError = 'No fue posible crear el vendedor: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _creatingSeller = false);
       }
     }
   }

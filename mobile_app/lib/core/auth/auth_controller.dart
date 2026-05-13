@@ -45,6 +45,7 @@ class AuthController extends ChangeNotifier with WidgetsBindingObserver {
   bool get canViewFacturacion => _hasPermission('facturacion.view');
   bool get canCreateFacturacion => _hasPermission('facturacion.create');
   bool get canEditFacturacion => _hasPermission('facturacion.update');
+  bool get canCreateUsuarios => _hasPermission('usuarios.create');
 
   Future<void> restoreSession() async {
     final storedToken = await _storage.readToken();
